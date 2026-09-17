@@ -27,7 +27,7 @@ export class Arena extends Phaser.Scene {
   private tiles:Phaser.GameObjects.Image[]=[];
   private enemies:Enemy[]=[]; private shots:Shot[]=[]; private drops:Drop[]=[];
   private random:()=>number; private clock=0; private spawnTimer=0; private attackTimer=0; private stormTimer=4; private novaTimer=5; private mendTimer=8; private hitTimer=0; private hudTimer=0; private elapsedStart=0;
-  private pointer:{x:number;y:number}|null=null;
+  private pointer:{input:Phaser.Input.Pointer;x:number;y:number}|null=null;
   private direction=0; private moving=false; private finished=false; private nextId=0; private lastTile=-1; private tileLock=0;
   private keys?:Record<string,Phaser.Input.Keyboard.Key>;
   private orbiters:Phaser.GameObjects.Image[]=[];
@@ -65,9 +65,11 @@ export class Arena extends Phaser.Scene {
       for(const p of MAP.props)this.add.image(p.x,p.y,'props',p.frame).setOrigin(.5,.85).setDisplaySize(p.w,p.h).setDepth(p.sortY);
       if(this.isBoss())this.spawnEnemy(6+this.chapter(),195,130);
     }
-    this.input.on('pointerdown',(p:Phaser.Input.Pointer)=>{this.pointer={x:p.x,y:p.y};});
-    this.input.on('pointerup',()=>{this.pointer=null;});
-    this.input.on('pointerupoutside',()=>{this.pointer=null;});
+    this.input.on('pointerdown',(p:Phaser.Input.Pointer)=>{if(!this.pointer)this.pointer={input:p,x:p.x,y:p.y};});
+    const release=(p:Phaser.Input.Pointer)=>{if(this.pointer?.input===p)this.pointer=null;};
+    this.input.on('pointerup',release);
+    this.input.on('pointerupoutside',release);
+    this.input.on('gameout',()=>{this.pointer=null;this.joystick.clear();});
     this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as Record<string,Phaser.Input.Keyboard.Key>;
     this.game.canvas.addEventListener('contextmenu',e=>e.preventDefault());
     this.hooks.hud(this.run,this.duration(),this.isBoss()?1:null);
@@ -136,19 +138,21 @@ export class Arena extends Phaser.Scene {
   }
   private move(dt:number){
     let dx=0,dy=0;
-    const p=this.input.activePointer;
     this.joystick.clear();
-    if(this.pointer&&p.isDown){
-      dx=p.x-this.pointer.x;dy=p.y-this.pointer.y;
-      const len=Math.hypot(dx,dy),reach=Math.min(34,len);
-      this.joystick.lineStyle(1,0xffffff,.25);this.joystick.strokeCircle(this.pointer.x,this.pointer.y,35);
-      this.joystick.fillStyle(0xffffff,.28);this.joystick.fillCircle(this.pointer.x+(len?dx/len*reach:0),this.pointer.y+(len?dy/len*reach:0),12);
-      if(len<5){dx=0;dy=0;}
+    if(this.pointer&&!this.pointer.input.isDown)this.pointer=null;
+    if(this.pointer){
+      const p=this.pointer.input,radius=42,deadzone=6;
+      const x=p.x-this.pointer.x,y=p.y-this.pointer.y,len=Math.hypot(x,y);
+      if(len>radius){this.pointer.x=p.x-x/len*radius;this.pointer.y=p.y-y/len*radius;}
+      const reach=Math.min(radius,len),strength=Math.max(0,(reach-deadzone)/(radius-deadzone));
+      dx=len?x/len*strength:0;dy=len?y/len*strength:0;
+      this.joystick.lineStyle(1,0xffffff,.32);this.joystick.strokeCircle(this.pointer.x,this.pointer.y,radius);
+      this.joystick.fillStyle(0xffffff,.35);this.joystick.fillCircle(this.pointer.x+(len?x/len*reach:0),this.pointer.y+(len?y/len*reach:0),12);
     }
     if(this.keys){dx+=(this.keys.D.isDown||this.keys.RIGHT.isDown?1:0)-(this.keys.A.isDown||this.keys.LEFT.isDown?1:0);dy+=(this.keys.S.isDown||this.keys.DOWN.isDown?1:0)-(this.keys.W.isDown||this.keys.UP.isDown?1:0);}
     const len=Math.hypot(dx,dy);this.moving=len>0;
     if(len){
-      const speed=128*(1+this.level('stride')*.12);let x=this.hero.x+dx/len*speed*dt,y=this.hero.y+dy/len*speed*dt;
+      const speed=128*(1+this.level('stride')*.12),scale=Math.max(1,len);let x=this.hero.x+dx/scale*speed*dt,y=this.hero.y+dy/scale*speed*dt;
       const b=MAP.walkBounds;x=Phaser.Math.Clamp(x,b.left,b.right);y=Phaser.Math.Clamp(y,b.top,b.bottom);
       if(!this.puzzleMode)for(const q of MAP.blockers){const dist=Math.hypot(x-q.x,y-q.y),radius=q.r+10;if(dist<radius){x=q.x+(x-q.x)/(dist||1)*radius;y=q.y+(y-q.y)/(dist||1)*radius;}}
       this.hero.setPosition(x,y);this.direction=Math.abs(dx)>Math.abs(dy)?(dx<0?1:2):(dy<0?3:0);
@@ -280,6 +284,6 @@ export class Arena extends Phaser.Scene {
 }
 export function mountArena(parent:HTMLElement,run:Run,hooks:ArenaHooks,puzzleMode=false){
   const scene=new Arena(run,hooks,puzzleMode);
-  const game=new Phaser.Game({type:Phaser.AUTO,parent,width:390,height:660,backgroundColor:'#112726',pixelArt:true,antialias:false,scene:[scene],fps:{target:30,forceSetTimeOut:false},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},audio:{noAudio:true},input:{activePointers:1}});
+  const game=new Phaser.Game({type:Phaser.AUTO,parent,width:390,height:660,backgroundColor:'#112726',pixelArt:true,antialias:false,scene:[scene],fps:{target:30,forceSetTimeOut:false},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},audio:{noAudio:true},input:{activePointers:2}});
   return {scene,game};
 }

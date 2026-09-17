@@ -154,8 +154,13 @@ function confirmRetreat(){
 }
 function installation(){
   const standalone=matchMedia('(display-mode: standalone)').matches||(navigator as Navigator&{standalone?:boolean}).standalone;
-  modal(`<span class="eyebrow">YOUR POCKET ADVENTURE</span><h2>把冒險帶在身上</h2><ol class="install-steps"><li>在 iPhone 的 Safari 開啟遊戲網址。</li><li>點「分享」→「加入主畫面」。</li><li><strong>從主畫面圖示開啟</strong>，保持連網直到顯示「已可離線遊玩」。</li><li>開啟飛航模式，重新開啟遊戲確認即可。</li></ol><div class="offline-state ${offline.ready?'complete':''}">${offline.ready?'✓':'◷'} ${esc(offline.message)}</div><p class="modal-sub">${standalone?'你正在主畫面 App 中。':'Safari 與主畫面 App 的存檔分開，建議在主畫面版本開始正式旅程。'}<br>請勿清除網站資料；重要進度可在設定中匯出備份。</p>${offline.update?`<button class="primary" id="update" ${save.run?'disabled':''}>${save.run?'遠征結束後可更新':'更新至已下載的新版本'}</button>`:!offline.ready?'<button class="primary" id="retry-offline">重新準備離線內容</button>':''}<button class="secondary full" id="close">知道了</button>`);
-  click('#close',closeModal);click('#retry-offline',()=>{void prepareOffline();closeModal();});click('#update',()=>{if(!save.run)applyUpdate();});
+  modal(`<span class="eyebrow">YOUR POCKET ADVENTURE</span><h2>把冒險帶在身上</h2><ol class="install-steps"><li>在 iPhone 的 Safari 開啟遊戲網址。</li><li>點「分享」→「加入主畫面」。</li><li><strong>從主畫面圖示開啟</strong>，保持連網直到顯示「已可離線遊玩」。</li><li>開啟飛航模式，關閉 Wi-Fi，再重新開啟遊戲確認。</li></ol><div id="offline-panel" aria-live="polite"></div><p class="modal-sub">${standalone?'你正在主畫面 App 中。':'Safari 與主畫面 App 的存檔可能分開，建議在主畫面版本開始正式旅程。'}<br>請勿清除網站資料；重要進度可在設定中匯出備份。</p><button class="secondary full" id="close">知道了</button>`);
+  renderOfflinePanel();click('#close',closeModal);
+}
+function renderOfflinePanel(){
+  const panel=$('#offline-panel');if(!panel)return;
+  panel.innerHTML=`<div class="offline-state ${offline.ready?'complete':''}">${offline.ready?'✓':'◷'} ${esc(offline.message)}</div>${offline.detail?`<p class="modal-sub offline-detail">${esc(offline.detail)}</p>`:''}${offline.update?`<button class="primary full" id="update" ${save.run?'disabled':''}>${save.run?'遠征結束後可更新':'更新至已下載的新版本'}</button>`:!offline.ready?`<button class="primary full" id="retry-offline" ${offline.working?'disabled':''}>${offline.working?'正在準備…':'重新下載缺少的內容'}</button>`:''}`;
+  click('#retry-offline',()=>void prepareOffline());click('#update',()=>{if(!save.run)applyUpdate();});
 }
 function settings(){
   modal(`<span class="eyebrow">SETTLE IN</span><h2>設定與存檔</h2><div class="settings-row"><div><strong>輕量音效</strong><p>啟程、升級與返回時的提示音</p></div><button id="sound" class="small-button">${save.settings.sound?'開啟':'關閉'}</button></div><div class="settings-row"><div><strong>你的旅程，存在這裡</strong><p>本機存檔 · ${save.profile.cleared}/6 主線完成</p></div><span>◇</span></div><div class="backup-actions"><button class="secondary" id="export">匯出備份</button><button class="secondary" id="import">匯入存檔</button></div><input type="file" accept="application/json,.json" id="import-file" hidden><p class="modal-sub">清除網站資料或移除 App 可能使進度消失。備份檔可以在同一網址的其他裝置匯入。</p><button class="text-button full" id="install-help">iPhone 安裝與離線說明 →</button><button class="primary" id="close">返回營地</button>`);
@@ -177,7 +182,7 @@ async function exportSave(){
     else{const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=file.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
   }catch(e){if((e as Error).name!=='AbortError')toast('備份分享失敗，請再試一次。');}
 }
-watchOffline(s=>{offline=s;const el=$('#offline');if(el){el.textContent=`${s.ready?'◇':'◷'} ${s.message}`;el.classList.toggle('ready',s.ready);}});
+watchOffline(s=>{offline=s;const el=$('#offline');if(el){el.textContent=`${s.ready?'◇':'◷'} ${s.message}`;el.classList.toggle('ready',s.ready);}renderOfflinePanel();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();void audio?.suspend();}});
 window.addEventListener('pagehide',()=>arena?.scene.pause());
 function registerTools(){
