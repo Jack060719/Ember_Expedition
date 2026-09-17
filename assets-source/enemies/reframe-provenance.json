@@ -1,0 +1,195 @@
+{
+  "source": "C:\\Users\\User\\AppData\\Local\\Temp\\ember-assets\\enemies\\raw-sheet.png",
+  "reason": "Full creatures cross equal row boundaries; crops use empty gutters and preserve complete silhouettes.",
+  "records": [
+    {
+      "row": 0,
+      "col": 0,
+      "source_region": [
+        0,
+        0,
+        418,
+        400
+      ],
+      "subject_bbox": [
+        57,
+        106,
+        365,
+        346
+      ],
+      "scale": 1.1363636363636365,
+      "position": [
+        81,
+        119
+      ]
+    },
+    {
+      "row": 0,
+      "col": 1,
+      "source_region": [
+        418,
+        0,
+        836,
+        400
+      ],
+      "subject_bbox": [
+        12,
+        59,
+        410,
+        358
+      ],
+      "scale": 0.8793969849246231,
+      "position": [
+        593,
+        124
+      ]
+    },
+    {
+      "row": 0,
+      "col": 2,
+      "source_region": [
+        836,
+        0,
+        1254,
+        400
+      ],
+      "subject_bbox": [
+        29,
+        89,
+        376,
+        358
+      ],
+      "scale": 1.0086455331412103,
+      "position": [
+        1105,
+        120
+      ]
+    },
+    {
+      "row": 1,
+      "col": 0,
+      "source_region": [
+        0,
+        400,
+        418,
+        804
+      ],
+      "subject_bbox": [
+        40,
+        44,
+        359,
+        394
+      ],
+      "scale": 1.0,
+      "position": [
+        96,
+        593
+      ]
+    },
+    {
+      "row": 1,
+      "col": 1,
+      "source_region": [
+        418,
+        400,
+        836,
+        804
+      ],
+      "subject_bbox": [
+        59,
+        34,
+        343,
+        394
+      ],
+      "scale": 0.9722222222222222,
+      "position": [
+        630,
+        593
+      ]
+    },
+    {
+      "row": 1,
+      "col": 2,
+      "source_region": [
+        836,
+        400,
+        1254,
+        804
+      ],
+      "subject_bbox": [
+        9,
+        31,
+        390,
+        394
+      ],
+      "scale": 0.9186351706036745,
+      "position": [
+        1105,
+        601
+      ]
+    },
+    {
+      "row": 2,
+      "col": 0,
+      "source_region": [
+        0,
+        804,
+        418,
+        1254
+      ],
+      "subject_bbox": [
+        26,
+        10,
+        393,
+        409
+      ],
+      "scale": 0.8771929824561403,
+      "position": [
+        95,
+        1105
+      ]
+    },
+    {
+      "row": 2,
+      "col": 1,
+      "source_region": [
+        418,
+        804,
+        836,
+        1254
+      ],
+      "subject_bbox": [
+        15,
+        15,
+        408,
+        409
+      ],
+      "scale": 0.8883248730964467,
+      "position": [
+        593,
+        1105
+      ]
+    },
+    {
+      "row": 2,
+      "col": 2,
+      "source_region": [
+        836,
+        804,
+        1254,
+        1254
+      ],
+      "subject_bbox": [
+        7,
+        27,
+        402,
+        406
+      ],
+      "scale": 0.8860759493670886,
+      "position": [
+        1105,
+        1112
+      ]
+    }
+  ]
+}

@@ -1,0 +1,213 @@
+{
+  "art_generation": "built-in image_gen",
+  "sprites": {
+    "hero": {
+      "file": "../public/assets/hero.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "cell_size": 128,
+      "rows": 4,
+      "cols": 4,
+      "order": [
+        "down-neutral",
+        "down-left-step",
+        "down-neutral-2",
+        "down-right-step",
+        "left-neutral",
+        "left-left-step",
+        "left-neutral-2",
+        "left-right-step",
+        "right-neutral",
+        "right-left-step",
+        "right-neutral-2",
+        "right-right-step",
+        "up-neutral",
+        "up-left-step",
+        "up-neutral-2",
+        "up-right-step"
+      ],
+      "output_origin": [
+        64,
+        116
+      ],
+      "qc": {
+        "frame_count": 16,
+        "valid_frame_count": 16,
+        "empty_count": 0,
+        "edge_touch_count": 0,
+        "paste_clamped_count": 0,
+        "body_scale_mean": 0.548056530313878,
+        "output_subject_height_mean": 77.8125,
+        "body_scale_cv": 0.006571192937456802,
+        "anchor_x_std": 0.015136217469360155,
+        "anchor_y_std": 0.023797403858300707,
+        "anchor_y_mean": 0.8508647540983609
+      },
+      "metadata": "hero/pipeline-meta.json"
+    },
+    "enemies": {
+      "file": "../public/assets/enemies.png",
+      "size": [
+        384,
+        384
+      ],
+      "mode": "RGBA",
+      "cell_size": 128,
+      "rows": 3,
+      "cols": 3,
+      "order": [
+        "moss-slime",
+        "violet-moth",
+        "red-beetle",
+        "stone-thrower",
+        "purple-wraith",
+        "armored-guard",
+        "moss-stag-boss",
+        "stone-priest-boss",
+        "starfire-dragon-boss"
+      ],
+      "output_origin": null,
+      "qc": {
+        "frame_count": 9,
+        "valid_frame_count": 9,
+        "empty_count": 0,
+        "edge_touch_count": 0,
+        "paste_clamped_count": 0,
+        "body_scale_mean": 0.4833112603336411,
+        "output_subject_height_mean": 97.44444444444444,
+        "body_scale_cv": 0.06625413125179487,
+        "anchor_x_std": 0.04392494919143938,
+        "anchor_y_std": 0.04156312732981148,
+        "anchor_y_mean": 0.7682054673721345
+      },
+      "metadata": "enemies/pipeline-meta.json"
+    },
+    "props": {
+      "file": "../public/assets/props.png",
+      "size": [
+        384,
+        384
+      ],
+      "mode": "RGBA",
+      "cell_size": 128,
+      "rows": 3,
+      "cols": 3,
+      "order": [
+        "chest-closed",
+        "chest-open",
+        "lantern",
+        "rune-plaque",
+        "fire-projectile",
+        "cyan-blade",
+        "lightning-spark",
+        "healing-fruit",
+        "golden-ember"
+      ],
+      "output_origin": null,
+      "qc": {
+        "frame_count": 9,
+        "valid_frame_count": 9,
+        "empty_count": 0,
+        "edge_touch_count": 0,
+        "paste_clamped_count": 0,
+        "body_scale_mean": 0.37792081937433686,
+        "output_subject_height_mean": 93.66666666666667,
+        "body_scale_cv": 0.1454667720822865,
+        "anchor_x_std": 0.020201066261976243,
+        "anchor_y_std": 0.05342019553090796,
+        "anchor_y_mean": 0.5063685636856369
+      },
+      "metadata": "props/pipeline-meta.json"
+    }
+  },
+  "backgrounds": {
+    "forest": {
+      "file": "../public/assets/forest.jpg",
+      "size": [
+        1024,
+        1536
+      ],
+      "mode": "RGB",
+      "transparent": false,
+      "foundation_only": true,
+      "raw": "forest/raw.png",
+      "prompt": "forest/prompt-used.txt"
+    },
+    "temple": {
+      "file": "../public/assets/temple.jpg",
+      "size": [
+        1024,
+        1536
+      ],
+      "mode": "RGB",
+      "transparent": false,
+      "foundation_only": true,
+      "raw": "temple/raw.png",
+      "prompt": "temple/prompt-used.txt"
+    },
+    "tower": {
+      "file": "../public/assets/tower.jpg",
+      "size": [
+        1024,
+        1536
+      ],
+      "mode": "RGB",
+      "transparent": false,
+      "foundation_only": true,
+      "raw": "tower/raw.png",
+      "prompt": "tower/prompt-used.txt"
+    },
+    "camp": {
+      "file": "../public/assets/camp.jpg",
+      "size": [
+        1536,
+        1024
+      ],
+      "mode": "RGB",
+      "transparent": false,
+      "foundation_only": false,
+      "raw": "camp/raw.png",
+      "prompt": "camp/prompt-used.txt"
+    }
+  },
+  "icons": {
+    "180": {
+      "file": "../public/assets/icon-180.png",
+      "size": [
+        180,
+        180
+      ],
+      "source": "camp background crop plus down-1 hero; no new generated art",
+      "hero_safe_margin_512": 94
+    },
+    "192": {
+      "file": "../public/assets/icon-192.png",
+      "size": [
+        192,
+        192
+      ],
+      "source": "camp background crop plus down-1 hero; no new generated art",
+      "hero_safe_margin_512": 94
+    },
+    "512": {
+      "file": "../public/assets/icon-512.png",
+      "size": [
+        512,
+        512
+      ],
+      "source": "camp background crop plus down-1 hero; no new generated art",
+      "hero_safe_margin_512": 94
+    }
+  },
+  "limitations": [
+    "Hero/enemy/prop original generated sheets are 1254x1254 despite requested raw dimensions; original images are retained, final sheets are exact 128px cells.",
+    "Enemy original third row crosses equal-grid row boundaries; complete isolated silhouettes were deterministically cropped through empty gutters and reframed before strict QC. See enemies/reframe-provenance.json.",
+    "Enemies and effects are single static frames; animation is supplied only for the hero.",
+    "Pixel artwork contains minor source antialiasing; nearest-neighbor sprite resampling was used.",
+    "Icon is a composition of existing generated camp and high-resolution hero raw frame art, with hero contained in the center safe area.",
+    "Props preprocessing removes only near-invisible source pixels with alpha <= 8 to prevent stray pixels from inflating crop boxes; intentional visible spell sparks are retained."
+  ]
+}

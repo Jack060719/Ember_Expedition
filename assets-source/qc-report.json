@@ -1,0 +1,37 @@
+{
+  "verified_images": 145,
+  "sheets": {
+    "hero": {
+      "frame_count": 16,
+      "empty_count": 0,
+      "edge_touch_count": 0,
+      "paste_clamped_count": 0,
+      "body_scale_cv": 0.006571192937456802,
+      "anchor_y_std": 0.023797403858300707
+    },
+    "enemies": {
+      "frame_count": 9,
+      "empty_count": 0,
+      "edge_touch_count": 0,
+      "paste_clamped_count": 0,
+      "body_scale_cv": 0.06625413125179487,
+      "anchor_y_std": 0.04156312732981148
+    },
+    "props": {
+      "frame_count": 9,
+      "empty_count": 0,
+      "edge_touch_count": 0,
+      "paste_clamped_count": 0,
+      "body_scale_cv": 0.1454667720822865,
+      "anchor_y_std": 0.05342019553090796
+    }
+  },
+  "hero_gif_frames": {
+    "animation.gif": 16,
+    "down.gif": 4,
+    "left.gif": 4,
+    "right.gif": 4,
+    "up.gif": 4
+  },
+  "visual_review": "Final 3 sprite atlases, all 4 ground/camp images, and icon reviewed. Full silhouettes, correct cell order and no baked runtime objects on ground foundations."
+}
