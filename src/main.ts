@@ -159,7 +159,11 @@ function confirmRetreat(){
 }
 function installation(){
   const standalone=matchMedia('(display-mode: standalone)').matches||(navigator as Navigator&{standalone?:boolean}).standalone;
-  modal(`<span class="eyebrow">YOUR POCKET ADVENTURE</span><h2>把冒險帶在身上</h2><ol class="install-steps"><li>在 iPhone 的 Safari 開啟遊戲網址。</li><li>點「分享」→「加入主畫面」。</li><li><strong>從主畫面圖示開啟</strong>，保持連網直到顯示「已可離線遊玩」。</li><li>開啟飛航模式，關閉 Wi-Fi，再重新開啟遊戲確認。</li></ol><div id="offline-panel" aria-live="polite"></div><p class="modal-sub">${standalone?'你正在主畫面 App 中。':'Safari 與主畫面 App 的存檔可能分開，建議在主畫面版本開始正式旅程。'}<br>請勿清除網站資料；重要進度可在設定中匯出備份。</p><button class="secondary full" id="close">知道了</button>`);
+  const android=/Android/i.test(navigator.userAgent), ios=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const openStep=android?'在 Android 的 Chrome 開啟遊戲網址。':ios?'在 iPhone／iPad 的 Safari 開啟遊戲網址。':'Android 請用 Chrome，iPhone／iPad 請用 Safari 開啟遊戲網址。';
+  const installStep=android?'點右上角「⋮」→「加入主畫面」或「安裝應用程式」。':ios?'點「分享」→「加入主畫面」。':'Android：點「⋮」→「加入主畫面」或「安裝應用程式」。iPhone／iPad：點「分享」→「加入主畫面」。';
+  const storageNote=standalone?'你正在主畫面 App 中。':android?'請固定使用同一個 Chrome 瀏覽環境與遊戲網址；換瀏覽器不會自動帶入存檔。':'Safari 與主畫面 App 的存檔可能分開，建議在主畫面版本開始正式旅程。';
+  modal(`<span class="eyebrow">YOUR POCKET ADVENTURE</span><h2>把冒險帶在身上</h2><ol class="install-steps"><li>${openStep}</li><li>${installStep}</li><li><strong>從主畫面圖示開啟</strong>，保持連網直到顯示「已可離線遊玩」。</li><li>開啟飛航模式，關閉 Wi-Fi，再重新開啟遊戲確認。</li><li>日後連網回到這裡點「檢查更新」，新版下載完成後，<strong>結束遠征再套用更新</strong>。</li></ol><div id="offline-panel" aria-live="polite"></div><p class="modal-sub">${storageNote}<br>請勿清除網站資料；重要進度可在設定中匯出備份。</p><button class="secondary full" id="close">知道了</button>`);
   renderOfflinePanel();click('#close',closeModal);
 }
 function renderOfflinePanel(){
@@ -174,7 +178,7 @@ function renderOfflinePanel(){
   });
 }
 function settings(){
-  modal(`<span class="eyebrow">SETTLE IN</span><h2>設定與存檔</h2><div class="settings-row"><div><strong>輕量音效</strong><p>啟程、升級與返回時的提示音</p></div><button id="sound" class="small-button">${save.settings.sound?'開啟':'關閉'}</button></div><div class="settings-row"><div><strong>你的旅程，存在這裡</strong><p>本機存檔 · ${save.profile.cleared}/6 主線完成</p></div><span>◇</span></div><div class="backup-actions"><button class="secondary" id="export">匯出備份</button><button class="secondary" id="import">匯入存檔</button></div><input type="file" accept="application/json,.json" id="import-file" hidden><p class="modal-sub">清除網站資料或移除 App 可能使進度消失。備份檔可以在同一網址的其他裝置匯入。</p><button class="text-button full" id="install-help">iPhone 安裝與離線說明 →</button><button class="primary" id="close">返回營地</button>`);
+  modal(`<span class="eyebrow">SETTLE IN</span><h2>設定與存檔</h2><div class="settings-row"><div><strong>輕量音效</strong><p>啟程、升級與返回時的提示音</p></div><button id="sound" class="small-button">${save.settings.sound?'開啟':'關閉'}</button></div><div class="settings-row"><div><strong>你的旅程，存在這裡</strong><p>本機存檔 · ${save.profile.cleared}/6 主線完成</p></div><span>◇</span></div><div class="backup-actions"><button class="secondary" id="export">匯出備份</button><button class="secondary" id="import">匯入存檔</button></div><input type="file" accept="application/json,.json" id="import-file" hidden><p class="modal-sub">清除網站資料或移除 App 可能使進度消失。備份檔可以在同一網址的其他裝置匯入。</p><button class="text-button full" id="install-help">安裝、離線與更新說明 →</button><button class="primary" id="close">返回營地</button>`);
   click('#close',closeModal);click('#install-help',installation);click('#sound',async()=>{const next=structuredClone(save);next.settings.sound=!next.settings.sound;if(await persist(next))settings();});click('#export',()=>void exportSave());click('#import',()=>$('#import-file')?.click());
   $('#import-file')?.addEventListener('change',async event=>{
     const file=(event.target as HTMLInputElement).files?.[0];if(!file)return;

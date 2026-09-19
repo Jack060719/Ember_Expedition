@@ -4,6 +4,7 @@
 
 ## 目前結論
 
+- Android 分支 TASK-007 已依使用者選擇完成 Chrome 主畫面安裝說明與私人 manifest 讀取修正，Android 模擬的遊玩／離線／更新回歸通過。尚未提交、合併或發布；系統安裝與真實登入往返仍待 Android 手機驗收，詳見本檔最新交接。
 - 一般關卡的難度調整已實作、完成本機驗證，且在 2026-09-19 獲使用者試玩認可。
 - TASK-001 第二輪已依試玩回饋增加首領生命 25%、每波增援 8 → 12 隻，已完成本機回歸，並於 2026-09-19 獲使用者試玩認可；任務已完成、結案。
 - 新角色、更多武器／升級、自由搭配與無盡模式亦為下一版方向，詳見 [ROADMAP.md](ROADMAP.md)。
@@ -64,6 +65,32 @@ TASK-001 實作與驗收紀錄已提交於 `7e3f8d1`；main 原有任務卡與�
 - 本機建置完成不等於已發布。發布沿用既有 hosting 身分且只部署 `dist/`，由執行者另記錄發布版本與驗證結果。
 
 ## 進行中任務與最近交接
+
+### Android 分支獨立測試站：2026-09-19（部署中）
+
+使用者要求先提供 Android 分支的測試連結，不必先合併 main。採獨立私人 Sites 站台；原專案 `.openai/hosting.json` 身分與正式站第 6 版維持不變。測試站在忽略的 `artifacts/android-preview/` 保存自己的 `.openai/hosting.json` 與可追溯的靜態發布來源，僅部署本分支已驗證的 `dist/`。不同網址的存檔分開，玩家可透過 JSON 備份轉入；不將測試存檔或原始美術放入發布包。完成後補記測試網址、版本與實際驗證。
+
+### Android 主畫面安裝與後續更新：2026-09-19
+
+任務／負責者／分支與工作樹／基準：TASK-007／Codex／`Jack060719/for_Android`，`C:\Users\User\orca\workspaces\nowifi\for_Android`／`5710d00338ebc753d5d09521eccc797dab7c50a4`。開工時工作樹乾淨。狀態：本機實作與驗證完成、待手機驗收；尚未提交／合併／發布。
+
+使用者已確認「Chrome 開啟並加入主畫面，沿用網站更新」。`index.html` 的 manifest 連結加入 `crossorigin="use-credentials"`；在本機登入保護伺服器、停用 Service Worker 的獨立 Chromium 環境先重現原版 manifest 請求未帶 cookie、回傳 401 且無內容，修正後可直接載入 manifest 與既有 192／512px 圖示。這是本機驗證，未將 Android 系統安裝或正式站登入視為已通過。
+
+`src/main.ts` 依 Android／iOS 顯示對應的安裝步驟，其他裝置顯示兩者說明；設定入口改為「安裝、離線與更新說明」，補上結束遠征後套用更新的操作。沿用現有 `src/offline.ts` 與快取產生流程，未增加另一套更新機制。`package.json` 與三支檢查腳本加入 `npm run test:android`，依序在 4180 自建本工作樹的預覽／開發／離線伺服器；沒有使用或終止其他工作樹既有的 5173／4173 伺服器。產品選擇與交付／更新步驟已同步 PROJECT、ROADMAP、README。
+
+| 本次驗證 | 結果與範圍 |
+| --- | --- |
+| 新回歸先在舊版執行 | Android 安裝提示與需登入的 manifest 讀取均先失敗，修正後通過。 |
+| `npm test`、`npm run build` | 23 項通過；TypeScript、Vite 與離線建置通過，保留既有大型 bundle 提示。快取版本 `3a89987cf628`，14 個資源。 |
+| `npm run test:android` | Pixel 5 UA／觸控／尺寸的 10 組瀏覽器流程、49 項機制／觸控檢查與 8 組安裝／離線檢查通過；瀏覽器無 console／page error。 |
+| `npm run test:offline` | Chromium 原有 6 組快取、登入恢復、更新與存檔檢查通過。 |
+| `npm run test:offline -- --webkit` | WebKit 原有 6 組通過；斷線仍採中斷測試伺服器連線，不等於手機飛航模式。 |
+
+Android 檢查包含拖曳、多指干擾、取消／移出畫面、暫停、v1 遷移、匯出／無效匯入、真正離線新分頁開戰鬥、首領結算；更新涵蓋登入到期、存檔失敗阻止跳轉、同環境模擬重新登入、遠征中禁止套用、結束後更新與離線重開，更新前後存檔完整比對。另確認 iPhone UA 仍顯示 Safari 分享說明。未修改戰鬥規則，未重跑 24 組完整平衡遠征。
+
+報告：忽略的 `artifacts/android-browser-report.json`、`android-arena-report.json`；已檢視 `install-android.png`，安裝步驟與更新按鈕可讀，長內容可在視窗內捲動。離線測試結果輸出至終端。Chromium 模擬不代表 Android 系統主畫面安裝／圖示、真實 OAuth 往返、程序被系統終止後的冷啟動、效能、發熱或耗電已驗收。
+
+存檔／離線／部署：維持 Save v2、IndexedDB 名稱、manifest 的 `id`／`start_url`／`scope`、本地素材與 `.openai/hosting.json`。後續同網址發布完整 `dist/` 即沿用內容雜湊更新，遠征結束後才套用；保留私人網站權限。手機下一步：整合發布後，以 Android Chrome 從原網址加入主畫面，驗證觸控與切背景、登入失效恢復、已有存檔的新版套用及飛航模式重開，不清除資料或要求重裝。
 
 ### 保留登入的更新恢復修正：2026-09-19
 
