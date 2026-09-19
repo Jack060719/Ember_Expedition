@@ -65,6 +65,16 @@ TASK-001 實作與驗收紀錄已提交於 `7e3f8d1`；main 原有任務卡與�
 
 ## 進行中任務與最近交接
 
+### iPhone 加入主畫面圖示修正：2026-09-19
+
+任務／負責者／工作樹／基準：發布後圖示回報／Codex／`Jack060719/task-001-boss` → main／`a4d795e`。狀態：修正已整合 main，驗證與發布中，尚未取得 iPhone 實機驗收。
+
+使用者澄清「圖示不見」指 Safari 分享至主畫面的預覽只有「餘」字。原 PNG 未遺失：帶既有 API 授權取得線上 `icon-180.png` 為 HTTP 200，內容與原圖逐位元一致；不帶登入授權則是 HTTP 401／HTML。推測系統取圖沒有沿用網頁登入狀態，但沒有 iPhone 請求紀錄，不能據此宣稱已證實手機端原因。
+
+新增 `vite.config.ts`，在開發與建置 HTML 時將原 180px PNG 嵌入 `apple-touch-icon`，讓圖示不必另外發出需要登入的圖片請求；原素材、網址、存取範圍、存檔 v2 與遊戲邏輯不變。首頁約增加 86 KB 未壓縮內容；離線快取仍為 14 個資源。`scripts/check-game.mjs` 增加原圖內容一致與斷網解碼檢查；舊版先因仍需外部圖示請求而失敗。
+
+驗證：`npm test` 19 項通過；main 建置通過（既有大型 bundle 提示），版本 `f184980b06ab`；`npm run test:offline` 5 組通過；`npm run test:browser` 全套通過，包含原圖逐位元比對、斷網解碼、舊存檔遷移、首領勝利與單次結算。發布比對待完成。這些檢查不能替代 Safari 原生分享面板；加入主畫面的預覽及實際新增後的圖示仍待使用者確認，不標示整項已驗收。
+
 ### 手機更新入口修正：2026-09-19
 
 狀態：修正已合併發布，待 iPhone 使用者確認新版入口。來源提交 `05ec334e6dbfb40649e42abe34a23783f34b9edf` 已推送 GitHub 與 Sites main；Sites 第 4 版 `appgprj_6aabe9ab4ab881919a8d919463a6289d~appgver_23c6c9f5d91c81919b6c04b50a6595e5`，部署 `appgdep_6aae70ee68d081918c820332a5f59035` 為 `succeeded`。發布內容版本為 `e4ccdc90721c`，原網站存取範圍未變。
