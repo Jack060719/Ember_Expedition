@@ -100,6 +100,23 @@ try {
   await page.locator('[data-tab="journal"]').click();await expect(page.locator('.journal')).toContainText('三枚火種');
   report.push('Final chapter settlement is saved once; camp purchase persists and ending journal unlocks.');
 
+  const bossSave=initialSave();bossSave.profile.cleared=5;bossSave.profile.facilities={forge:10,beacon:10,archive:3};
+  bossSave.run=createRun(bossSave.profile,5,'staff','normal',55);bossSave.run.room=6;
+  for(const u of UPGRADES)bossSave.run.upgrades[u.id]=u.max;
+  await page.locator('[data-tab="expedition"]').click();
+  await importSave(bossSave);await page.locator('#resume').click();await page.locator('#enter-room').click();
+  await expect(page.locator('#boss-track')).toBeVisible();await page.locator('#pause').click();
+  const bossHealth=await page.locator('#boss-fill').getAttribute('style'),heroHealth=await page.locator('#health-label').textContent();
+  await page.waitForTimeout(1000);
+  assert.equal(await page.locator('#boss-fill').getAttribute('style'),bossHealth);assert.equal(await page.locator('#health-label').textContent(),heroHealth);
+  await page.locator('#checkpoint').click();await page.reload();await page.locator('#resume').click();await page.locator('#enter-room').click();
+  await expect(page.locator('#boss-track')).toBeVisible();await expect(page.locator('#health-label')).toContainText('200 / 200');
+  await page.screenshot({path:'artifacts/boss-resume-mobile.png'});
+  await expect(page.locator('.result-shell')).toContainText('你把火光帶回來了',{timeout:90000});
+  await page.locator('#home').click();const bossReward=await page.locator('.currency').textContent();
+  await page.reload();assert.equal(await page.locator('.currency').textContent(),bossReward);await expect(page.locator('#resume')).toHaveCount(0);
+  report.push('Offline boss checkpoint restores entry health; pause freezes both health bars; actual boss victory settles once after reload.');
+
   const desktop=await browser.newContext({viewport:{width:1440,height:1000}});
   const desktopPage=await desktop.newPage();watch(desktopPage);await desktopPage.goto('http://localhost:4173/');await expect(desktopPage.locator('#journey')).toBeVisible();
   await desktopPage.screenshot({path:'artifacts/camp-desktop.png',fullPage:true});await desktop.close();

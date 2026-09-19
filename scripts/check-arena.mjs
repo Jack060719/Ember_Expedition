@@ -85,17 +85,17 @@ try{
       const run=createRun(profile,chapter*2+1,'staff','normal',9);run.room=6;
       const t=await mount(run),s=t.arena.scene,boss=s.enemies.find(e=>e.type>=6);
       for(let i=0;i<180;i++)s.enemyStep(1/30);
-      const attacked=chapter===0?boss.sprite.y!==130:s.shots.length>0;
+      const attacked=chapter===0?boss.sprite.y!==130:chapter===1?s.run.hp<run.hp:s.shots.length>0;
       s.hit(boss,boss.hp+1);s.update(0,33);
       const notAbrupt=t.events.complete===0;
       for(let i=0;i<180;i++)s.update(i*33,33);
       results.push({test:'chapter '+(chapter+1)+' boss pattern and delayed victory',ok:attacked&&notAbrupt&&t.events.complete===1});t.close();
     }
-    {
-      const run=createRun(profile,1,'staff','normal',9);run.room=6;
+    for(let chapter=0;chapter<3;chapter++)for(const difficulty of ['normal','hard']){
+      const run=createRun(profile,chapter*2+1,'staff',difficulty,9);run.room=6;
       const t=await mount(run),s=t.arena.scene;
       for(let i=0;i<100;i++)s.update(i*1000/30,1000/30);
-      results.push({test:'living boss supplies two eight-enemy reinforcement waves within 3.4 seconds',ok:s.nextId===17&&s.enemies.some(e=>e.type===6&&e.hp>0)&&t.events.complete===0});t.close();
+      results.push({test:'chapter '+(chapter+1)+' '+difficulty+' boss supplies two twelve-enemy reinforcement waves within 3.4 seconds',ok:s.nextId===25&&s.enemies.some(e=>e.type>=6&&e.hp>0)&&t.events.complete===0});t.close();
     }
     {
       const t=await mount(createRun(profile,0,'blade','normal',10)),s=t.arena.scene;
@@ -151,6 +151,101 @@ try{
         damage.push(10000-foe.hp);t.close();
       }
       results.push({test:'orbit damage is stable at 30 and 60 fps',ok:Math.abs(damage[0]-damage[1])<.01,damage});
+    }
+    {
+      const run=createRun(profile,1,'staff','normal',31);run.room=6;
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];
+      b.sprite.setPosition(50,150);s.hero.setPosition(300,150);b.attack=0;
+      s.enemyStep(.01);const locked={dx:b.dx,dy:b.dy},hp=s.run.hp;
+      s.hero.setPosition(300,300);s.enemyStep(.4);
+      const warned=b.windup>0&&b.sprite.x===50&&s.run.hp===hp&&b.dx===locked.dx&&b.dy===locked.dy;
+      s.enemyStep(.41);const start=b.sprite.x;
+      const charge=b.charge;s.enemyStep(0);
+      results.push({test:'a zero-delta frame during a boss charge preserves finite position and remaining time',ok:b.sprite.x===start&&Number.isFinite(b.sprite.y)&&b.charge===charge});
+      while(b.charge>0)s.enemyStep(1/60);
+      results.push({test:'stag locks a readable lane, crosses ranged spacing and leaves recovery',ok:warned&&b.sprite.x-start>250&&b.boss.recovery>0&&b.sprite.x<=370});t.close();
+    }
+    {
+      const run=createRun(profile,1,'staff','normal',32);run.room=6;
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];
+      b.hp=b.max*.4;b.attack=0;s.hero.setPosition(330,450);
+      let warnings=0,secondLocked=false;
+      for(let frame=0;frame<300;frame++){
+        const before=b.windup;s.enemyStep(1/60);
+        if(b.windup>0&&before<=0){warnings++;if(warnings===2){secondLocked=b.boss.followup&&b.windup>=.7;break;}}
+      }
+      results.push({test:'half-health stag warns again before its second charge',ok:warnings===2&&secondLocked});t.close();
+    }
+    for(const dodge of [false,true]){
+      const run=createRun(profile,3,'staff','normal',33);run.room=6;
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];b.attack=0;
+      const hp=s.run.hp;s.enemyStep(.01);const target={x:b.dx,y:b.dy};
+      s.enemyStep(.4);const warned=s.run.hp===hp&&b.windup>0;
+      if(dodge)s.hero.setPosition(target.x+90,target.y);
+      s.enemyStep(.41);
+      results.push({test:'priest eruption '+(dodge?'can be left before detonation':'hits only after its warning'),ok:warned&&(dodge?s.run.hp===hp:s.run.hp<hp)&&s.shots.length===0});t.close();
+    }
+    {
+      const run=createRun(profile,3,'staff','normal',34);run.room=6;
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];b.hp=b.max*.4;b.attack=0;
+      s.enemyStep(.01);const first={x:b.dx,y:b.dy};s.hero.setPosition(300,430);
+      for(let i=0;i<120&&!(b.boss.followup&&b.windup>0);i++)s.enemyStep(1/60);
+      results.push({test:'half-health priest gives its second eruption a fresh target and full warning',ok:b.boss.followup&&b.windup>=.7&&b.dx===300&&b.dy===430&&(b.dx!==first.x||b.dy!==first.y)});t.close();
+    }
+    {
+      const run=createRun(profile,5,'staff','normal',35);run.room=6;
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];b.hp=b.max*.4;b.attack=0;
+      s.enemyStep(.01);s.enemyStep(.81);const ring=s.shots.length;
+      for(let i=0;i<120&&!(b.boss.followup&&b.windup>0);i++)s.enemyStep(1/60);
+      const warning=b.boss.action==='fan'&&b.windup>=.7;
+      const angle=Math.atan2(b.dy-b.sprite.y,b.dx-b.sprite.x);
+      s.hero.setPosition(40,590);s.enemyStep(.81);
+      const fan=s.shots.slice(ring),middle=fan[Math.floor(fan.length/2)];
+      results.push({test:'half-health dragon follows its ring with a separately warned, locked fan',ok:ring===14&&warning&&fan.length===7&&Math.abs(Math.atan2(middle.dy,middle.dx)-angle)<.001});t.close();
+    }
+    for(let chapter=0;chapter<3;chapter++){
+      const run=createRun(profile,chapter*2+1,'staff','normal',36);run.room=6;
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];b.hp=b.max*.4;b.attack=0;
+      s.enemyStep(.01);const warning=b.windup;s.pause();
+      // The actual Phaser scene is paused; its own clock must not advance.
+      const clock=s.clock;s.game.step(100,100);
+      const frozen=b.windup===warning&&s.clock===clock;s.resume();
+      s.hit(b,b.hp+1);s.update(0,33);
+      const safe=s.phase==='loot'&&s.shots.every(q=>!q.hostile);
+      for(let i=0;i<90;i++)s.update(i*33,33);
+      results.push({test:'boss '+(chapter+1)+' pause freezes warnings and death cancels pending attacks',ok:frozen&&safe&&t.events.complete===1&&t.events.defeat===0});t.close();
+    }
+    for(const dodge of [false,true]){
+      const run=createRun(profile,5,'staff','normal',38);run.room=6;
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];b.sprite.setPosition(330,250);s.hero.setPosition(330,500);b.boss.turn=1;b.attack=0;
+      const hp=s.run.hp;s.enemyStep(.01);s.enemyStep(.4);const warned=s.shots.length===0&&s.run.hp===hp;
+      if(dodge)s.hero.setPosition(60,500);
+      s.enemyStep(.41);for(let i=0;i<240;i++)s.projectileStep(1/60);
+      results.push({test:'dragon fan '+(dodge?'leaves a reachable safe side':'hits along its locked aim'),ok:warned&&(dodge?s.run.hp===hp:s.run.hp<hp)});t.close();
+    }
+    {
+      const run=createRun(profile,1,'staff','normal',39);run.room=6;run.upgrades={frost:3,ember:2};
+      const t=await mount(run),s=t.arena.scene,b=s.enemies[0];b.sprite.setPosition(330,550);s.hero.setPosition(360,590);b.attack=0;
+      s.hit(b,1);const hp=b.hp;s.enemyStep(.01);
+      const end={x:b.sprite.x+b.dx*b.boss.distance,y:b.sprite.y+b.dy*b.boss.distance};
+      const affected=b.hp<hp&&b.slow>0&&b.burn>0;
+      s.enemyStep(.81);while(b.charge>0)s.enemyStep(1/60);
+      results.push({test:'stag charge stops at its warned wall endpoint and still accepts burn and slow',ok:affected&&Math.abs(b.sprite.x-end.x)<.01&&Math.abs(b.sprite.y-end.y)<.01});t.close();
+    }
+    for(let chapter=0;chapter<3;chapter++){
+      const samples=[];
+      for(const fps of [30,60]){
+        const run=createRun(profile,chapter*2+1,'staff','normal',37);run.room=6;
+        const t=await mount(run),s=t.arena.scene,b=s.enemies[0];b.hp=b.max*.4;b.attack=0;s.run.hp=10000;
+        let warned=0,firstAttack=null;
+        for(let frame=0;frame<fps*15;frame++){
+          const winding=b.windup>0;s.enemyStep(1/fps);
+          if(!winding&&b.windup>0)warned++;
+          if(firstAttack===null&&(b.charge>0||s.shots.length||s.run.hp<10000))firstAttack=(frame+1)/fps;
+        }
+        samples.push({warned,shots:s.shots.length,firstAttack});t.close();
+      }
+      results.push({test:'boss '+(chapter+1)+' has consistent attack cadence at 30 and 60 fps',ok:samples[0].warned===samples[1].warned&&samples[0].shots===samples[1].shots&&samples.every(x=>x.firstAttack>=.7),samples});
     }
     return results;
   });
