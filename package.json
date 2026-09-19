@@ -10,6 +10,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:browser": "node scripts/check-game.mjs",
     "test:arena": "node scripts/check-arena.mjs && node scripts/check-balance.mjs",
+    "test:boss": "node scripts/check-boss.mjs",
     "test:offline": "node scripts/check-offline.mjs"
   },
   "dependencies": {

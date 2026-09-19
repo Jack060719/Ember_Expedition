@@ -9,7 +9,8 @@ export interface ArenaHooks {
   paused: () => void;
 }
 export type ArenaPhase = 'fighting'|'finalWave'|'clearing'|'loot'|'victory';
-interface Enemy { id:number; sprite:Phaser.GameObjects.Sprite; shadow:Phaser.GameObjects.Ellipse; hp:number; max:number; type:number; radius:number; speed:number; attack:number; windup:number; charge:number; dx:number; dy:number; burn:number; slow:number; flash:number; orbitHit:number; size:number; }
+interface BossState { action:'charge'|'eruption'|'ring'|'fan'; turn:number; followup:boolean; recovery:number; distance:number; enraged:boolean; }
+interface Enemy { id:number; sprite:Phaser.GameObjects.Sprite; shadow:Phaser.GameObjects.Ellipse; hp:number; max:number; type:number; radius:number; speed:number; attack:number; windup:number; charge:number; dx:number; dy:number; burn:number; slow:number; flash:number; orbitHit:number; size:number; boss?:BossState; }
 interface Shot { sprite:Phaser.GameObjects.Image|Phaser.GameObjects.Arc; x:number;y:number;dx:number;dy:number;damage:number;life:number;hostile:boolean;pierce:number;hit:Set<number>; style:'fire'|'wave'|'stone'|'spell'; }
 interface Drop { sprite:Phaser.GameObjects.Image; value:number; }
 interface Visual {kind:'slash'|'ring'|'bolt'|'burst';x:number;y:number;r:number;angle:number;half:number;color:number;life:number;duration:number;points?:{x:number;y:number}[];sprite?:Phaser.GameObjects.Image;}
@@ -80,11 +81,11 @@ export class Arena extends Phaser.Scene {
     }
     y??=90;
     const boss=type>=6, stage=this.chapter(), hard=this.run.difficulty==='hard';
-    const hp=boss?(1900+stage*900)*1.1:[14,10,28,35,22,65][type]*1.2*(1+stage*.28+this.run.room*.08);
+    const hp=boss?[4500,6500,7000][stage]:[14,10,28,35,22,65][type]*1.2*(1+stage*.28+this.run.room*.08);
     const size=boss?142:type===5?57:43;
     const sprite=this.add.sprite(x,y,'enemies',type).setDisplaySize(size,size).setOrigin(.5,.78).setDepth(y);
     const shadow=this.add.ellipse(x,y+3,boss?67:23,boss?25:10,0x041419,.45).setDepth(y-1);
-    this.enemies.push({id:this.nextId++,sprite,shadow,hp:hp*(hard?1.35:1),max:hp*(hard?1.35:1),type,radius:boss?38:type===5?17:12,speed:boss?(type===7?12:23):[34,47,37,22,32,26][type]*(hard?1.1:1),attack:1.3+this.random()*2,windup:0,charge:0,dx:0,dy:0,burn:0,slow:0,flash:0,orbitHit:0,size});
+    this.enemies.push({id:this.nextId++,sprite,shadow,hp:hp*(hard?1.35:1),max:hp*(hard?1.35:1),type,radius:boss?38:type===5?17:12,speed:boss?[34,24,36][stage]:[34,47,37,22,32,26][type]*(hard?1.1:1),attack:1.3+this.random()*2,windup:0,charge:0,dx:0,dy:0,burn:0,slow:0,flash:0,orbitHit:0,size,boss:boss?{action:'charge',turn:0,followup:false,recovery:0,distance:0,enraged:false}:undefined});
   }
   private hit(enemy:Enemy,damage:number,secondary=false){
     if(enemy.hp<=0)return;
@@ -195,6 +196,64 @@ export class Arena extends Phaser.Scene {
     }else{this.hero.stop();this.hero.setFrame(this.direction*4);}
     this.hero.setDepth(this.hero.y);this.shadow.setPosition(this.hero.x,this.hero.y+3).setDepth(this.hero.y-1);
   }
+  private finishBossAction(e:Enemy){
+    const b=e.boss!;
+    if(b.enraged&&!b.followup&&(e.type===6||b.action==='eruption'||(e.type===8&&b.action==='ring'))){
+      b.followup=true;b.recovery=.45;e.attack=.45;
+    }else{b.followup=false;b.recovery=e.type===6?1:.8;e.attack=e.type===6?2.4:2.2;}
+  }
+  private bossStep(e:Enemy,dt:number):{x:number;y:number}|null{
+    const b=e.boss!,still={x:0,y:0};
+    if(b.recovery>0){b.recovery=Math.max(0,b.recovery-dt);return still;}
+    if(e.charge>0){
+      const speed=e.charge<dt?235*e.charge/dt:235;e.charge=Math.max(0,e.charge-dt);
+      if(e.charge===0)this.finishBossAction(e);
+      return {x:e.dx*speed,y:e.dy*speed};
+    }
+    if(e.windup<=0&&e.attack<=0){
+      const dx=this.hero.x-e.sprite.x,dy=this.hero.y-e.sprite.y,dist=Math.hypot(dx,dy)||1;
+      if(e.type===6&&dist>360)return null;
+      if(!b.followup){
+        b.enraged=e.hp<=e.max*.5;
+        b.action=e.type===6?'charge':e.type===7?(b.turn%2?'ring':'eruption'):(b.turn%2?'fan':'ring');b.turn++;
+      }else if(e.type===8)b.action='fan';
+      e.windup=.8;
+      e.dx=b.action==='charge'?dx/dist:this.hero.x;e.dy=b.action==='charge'?dy/dist:this.hero.y;
+      b.distance=Math.min(340,dist+20);
+      if(b.action==='charge')b.distance=Math.min(b.distance,e.dx?((e.dx>0?370:20)-e.sprite.x)/e.dx:Infinity,e.dy?((e.dy>0?605:60)-e.sprite.y)/e.dy:Infinity);
+      return still;
+    }
+    if(e.windup<=0)return null;
+    e.windup=Math.max(0,e.windup-dt);
+    const angle=Math.atan2(e.dy-e.sprite.y,e.dx-e.sprite.x);
+    this.effects.lineStyle(2,0xffbc87,.85);
+    if(b.action==='charge'){
+      const x=e.sprite.x+e.dx*b.distance,y=e.sprite.y+e.dy*b.distance;
+      this.effects.lineStyle(100,0xef9b75,.22);this.effects.lineBetween(e.sprite.x,e.sprite.y,x,y);
+      this.effects.fillStyle(0xef9b75,.22);this.effects.fillCircle(x,y,50);
+    }else if(b.action==='eruption'){
+      this.effects.fillStyle(0xe6a86f,.23);this.effects.fillCircle(e.dx,e.dy,56);this.effects.strokeCircle(e.dx,e.dy,56);
+    }else if(b.action==='fan'){
+      this.effects.fillStyle(0xef9b75,.13);this.effects.slice(e.sprite.x,e.sprite.y-13,660,angle-(b.enraged?.78:.52),angle+(b.enraged?.78:.52),false);this.effects.fillPath();this.effects.strokePath();
+    }else this.effects.strokeCircle(e.sprite.x,e.sprite.y,e.radius+12+(1-e.windup/.8)*12);
+    if(e.windup>0)return still;
+    if(b.action==='charge')e.charge=b.distance/235;
+    else{
+      if(b.action==='eruption'){
+        this.addVisual('ring',e.dx,e.dy,56,0xffbc87);
+        if(Math.hypot(this.hero.x-e.dx,this.hero.y-e.dy)<56)this.hurt(23);
+      }else{
+        const count=b.action==='fan'?(b.enraged?7:5):e.type===7?(b.enraged?10:8):(b.enraged?14:10);
+        const speed=this.run.difficulty==='hard'?127:105;
+        for(let k=0;k<count;k++){
+          const a=b.action==='fan'?angle+(k-(count-1)/2)*.26:k/count*Math.PI*2+b.turn*.35;
+          this.shoot(e.sprite.x,e.sprite.y-13,Math.cos(a)*speed,Math.sin(a)*speed,16,true);
+        }
+      }
+      this.finishBossAction(e);
+    }
+    return still;
+  }
   private enemyStep(dt:number){
     const hard=this.run.difficulty==='hard';
     for(const e of this.enemies){
@@ -205,15 +264,16 @@ export class Arena extends Phaser.Scene {
       e.slow-=dt;e.attack-=dt;e.orbitHit-=dt;
       const slow=e.slow>0?Math.max(.3,1-this.level('frost')*.18):1;
       let vx=dx/dist*e.speed*slow,vy=dy/dist*e.speed*slow;
+      if(e.boss){const velocity=this.bossStep(e,dt);if(velocity){vx=velocity.x;vy=velocity.y;}if(this.finished)return;}
       if(e.type===1){vx+=(Math.sin(this.clock*2+e.id)*18);vy+=Math.cos(this.clock*2+e.id)*18;}
       if((e.type===3||e.type===4)&&dist<155&&this.phase!=='clearing'){vx=-vx*.3;vy=-vy*.3;}
-      const charger=e.type===2||e.type===6;
+      const charger=e.type===2;
       if(charger){
         if(e.windup>0){
           e.windup-=dt;vx=vy=0;
-          this.effects.lineStyle(e.type===6?62:24,0xef9b75,.25);this.effects.lineBetween(e.sprite.x,e.sprite.y,e.sprite.x+e.dx*180,e.sprite.y+e.dy*180);
+          this.effects.lineStyle(24,0xef9b75,.25);this.effects.lineBetween(e.sprite.x,e.sprite.y,e.sprite.x+e.dx*180,e.sprite.y+e.dy*180);
           if(e.windup<=0)e.charge=.65;
-        }else if(e.charge>0){e.charge-=dt;vx=e.dx*235;vy=e.dy*235;if(e.charge<=0)e.attack=e.type===6?2.4:2.7;}
+        }else if(e.charge>0){e.charge-=dt;vx=e.dx*235;vy=e.dy*235;if(e.charge<=0)e.attack=2.7;}
         else if(e.attack<=0){e.windup=.7;e.dx=dx/dist;e.dy=dy/dist;vx=vy=0;}
       }
       if(e.type===5){
@@ -229,20 +289,17 @@ export class Arena extends Phaser.Scene {
           }
         }
       }
-      if([3,4,7,8].includes(e.type)&&(e.attack<=0||e.windup>0)){
+      if((e.type===3||e.type===4)&&(e.attack<=0||e.windup>0)){
         if(e.windup===0){e.dx=this.hero.x;e.dy=this.hero.y;e.windup=.72;}
         e.windup=Math.max(0,e.windup-dt);vx=vy=0;
         this.effects.lineStyle(2,0xf29485,.65);this.effects.strokeCircle(e.sprite.x,e.sprite.y,e.radius+12+(1-e.windup/.72)*12);
         if(e.type===3){this.effects.fillStyle(0xb7c4ba,1);this.effects.fillCircle(e.sprite.x,e.sprite.y-30-(1-e.windup/.72)*7,7);}
-        if(e.type===7){this.effects.fillStyle(0xe6a86f,.2);this.effects.fillCircle(e.dx,e.dy,48);this.effects.lineStyle(2,0xffc685,.8);this.effects.strokeCircle(e.dx,e.dy,48);}
         if(e.windup===0){
-          e.attack=e.type>=6?2.8:3.6;
-          if(e.type===7&&Math.hypot(this.hero.x-e.dx,this.hero.y-e.dy)<48)this.hurt(23);
-          if(this.finished)return;
-          const amount=e.type===8?(e.hp<e.max*.5?14:10):e.type===7?8:e.type===4?3:1;
+          e.attack=3.6;
+          const amount=e.type===4?3:1;
           for(let k=0;k<amount;k++){
-            const angle=amount>3?k/amount*Math.PI*2+this.clock*.23:Math.atan2(e.dy-e.sprite.y,e.dx-e.sprite.x)+(k-(amount-1)/2)*.3;
-            this.shoot(e.sprite.x,e.sprite.y-13,Math.cos(angle)*(hard?127:105),Math.sin(angle)*(hard?127:105),e.type>=6?16:8,true,e.type===3?'stone':'spell');
+            const angle=Math.atan2(e.dy-e.sprite.y,e.dx-e.sprite.x)+(k-(amount-1)/2)*.3;
+            this.shoot(e.sprite.x,e.sprite.y-13,Math.cos(angle)*(hard?127:105),Math.sin(angle)*(hard?127:105),8,true,e.type===3?'stone':'spell');
           }
         }
       }
@@ -346,7 +403,7 @@ export class Arena extends Phaser.Scene {
     if(this.spawnTimer<=0&&this.phase!=='clearing'){
       this.spawnTimer=this.isBoss()?2.5:Math.max(.65,1-this.run.room*.045-this.clock*.002)*encounter(this.run).pace;
       const types=encounter(this.run).types;
-      const amount=this.isBoss()?8:[4,4,5,5,7,10,12][this.run.room]+(this.phase==='finalWave'?1:0)+(this.run.difficulty==='hard'?1:0);
+      const amount=this.isBoss()?12:[4,4,5,5,7,10,12][this.run.room]+(this.phase==='finalWave'?1:0)+(this.run.difficulty==='hard'?1:0);
       for(let k=0;k<amount;k++)this.spawnEnemy(k<Math.ceil(amount*.75)?Math.floor(this.random()*2):types[Math.floor(this.random()*types.length)]);
     }
     this.enemyStep(dt);if(this.finished)return;
