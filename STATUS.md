@@ -7,7 +7,7 @@
 - 一般關卡的難度調整已實作、完成本機驗證，且在 2026-09-19 獲使用者試玩認可。
 - TASK-001 第二輪已依試玩回饋增加首領生命 25%、每波增援 8 → 12 隻，已完成本機回歸，並於 2026-09-19 獲使用者試玩認可；任務已完成、結案。
 - 新角色、更多武器／升級、自由搭配與無盡模式亦為下一版方向，詳見 [ROADMAP.md](ROADMAP.md)。
-- TASK-001 已合併 main；首領更新為 Sites 第 3 版，手機更新入口修正為第 4 版，主畫面圖示修正為第 5 版。原網址與存取權限保留，未實作其他下版功能；iPhone 新版入口與圖示仍待使用者確認。
+- TASK-001 已合併 main；首領更新為 Sites 第 3 版，手機更新入口修正為第 4 版，主畫面圖示修正為第 5 版，保留登入的更新恢復為第 6 版。原網址與存取權限保留，未實作其他下版功能；iPhone 登入往返、更新與圖示仍待使用者確認。
 
 ## 已實作的基準
 
@@ -67,13 +67,19 @@ TASK-001 實作與驗收紀錄已提交於 `7e3f8d1`；main 原有任務卡與�
 
 ### 保留登入的更新恢復修正：2026-09-19
 
-任務／負責者／工作樹／基準：登入失效後恢復更新／Codex／`Jack060719/task-001-boss`／`e54ae2f`。使用者已明確選擇「先嘗試保留登入的修正」；目前實作完成，待 main 整合驗證、發布與 iPhone 驗收。保留原站 custom 權限，未公開網站。
+任務／負責者／工作樹／基準：登入失效後恢復更新／Codex／`Jack060719/task-001-boss` → main／`e54ae2f`。使用者已明確選擇「先嘗試保留登入的修正」；修正已合併發布，本機及線上入口驗證通過，待 iPhone 驗收。保留原站 custom 權限，未公開網站。
 
 修改 `src/offline.ts`、`src/main.ts`、`scripts/build-offline.mjs`：啟動時先讀已有 Worker 的離線狀態，再明確檢查更新；註冊成功不再被當成更新一定成功。更新失敗時確認是否收到 401／403／登入 HTML，顯示「重新登入以更新」；一般斷網不當成登入失效。登入前先保存目前進度，存檔失敗不離頁；使用平台原有同源登入入口，返回營地後重試更新，仍只在遠征結束後套用。沒有清除 Worker、快取、IndexedDB 或變更 Save v2。
 
 驗證：新增回歸先在舊程式失敗，修正後 `npm test` 23 項通過；建置通過。`npm run test:offline` 與 `npm run test:offline -- --webkit` 均為 6 組通過，含登入到期後從舊快取啟動、存檔失敗禁止登入跳轉、同一瀏覽器環境的模擬重新登入、原存檔完整保留、新版下載、遠征中禁止套用及更新後離線重開。WebKit 初次因測試伺服器斷網旗標未重設而失敗，修正該測試隔離問題後整套重跑通過。`artifacts/login-recovery-mobile.png` 為 390px 恢復入口畫面；這些是本機測試登入，未代替真實 ChatGPT 登入。
 
-尚待：main 完整瀏覽器與發布比對；真實 iPhone 主畫面登入是否仍在同一儲存環境，以及已卡在更舊版而尚無按鈕的 App 首次恢復。README 提供一般 Safari 的直接重新登入連結，但不宣稱可同步恢復已安裝 App。本次不修改戰鬥規則、不重跑完整平衡矩陣，不開始 TASK-002～TASK-006。
+main 整合後實際再次執行 `npm test`（23 項）、`npm run build`、`npm run test:offline`（6 組）、`npm run test:browser`（全套）均通過；另檢查 Chromium 斷網重新載入沒有 console error。完整瀏覽器涵蓋原圖示、v1 遷移、備份／匯入、首領暫停／勝利及單次結算。本次不修改戰鬥規則、不重跑完整平衡矩陣，不開始 TASK-002～TASK-006。
+
+發布來源 `9f2bc1fb6636c9314880ef0e8b3a7d176d699405` 已推送 GitHub 與 Sites main。Sites 第 6 版 `appgprj_6aabe9ab4ab881919a8d919463a6289d~appgver_344f759b13d4819188dd7ee3566feb3a`；部署 `appgdep_6aae867b94048191bf2206da78089db4` 為 `succeeded`，離線版本 `ee742cd70685`。發布包只含原 hosting 設定及 dist 的 16 檔。發布前後比對 access policy 完全相同；後續交接提交只更新本紀錄。
+
+發布後執行 `node artifacts/verify-login-recovery.mjs`：15 個線上檔案與 main 建置一致（僅排除平台注入的 Cloudflare script）；以獨立瀏覽器的合成 v2 存檔驗證，移除 API 授權後，真實 HTTP 401 會顯示重新登入按鈕，存檔保持一致；點擊確實取得平台 302 至 ChatGPT OAuth 入口，未代替使用者登入帳號。無 page error，報告／截圖為 main 的 `artifacts/login-recovery-published-report.json`、`login-recovery-production.png`。
+
+尚未驗證：真實帳號完成登入並返回 iPhone 主畫面 App 的同一儲存環境、該環境更新後的離線冷啟動，以及已卡在更舊版而尚無按鈕的 App 首次恢復。README 提供一般 Safari 的直接重新登入連結，但不宣稱可同步恢復已安裝 App；仍不標示手機問題整項驗收完成。
 
 ### 登入限制與手機更新診斷：2026-09-19
 
