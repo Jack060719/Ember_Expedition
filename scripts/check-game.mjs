@@ -1,18 +1,32 @@
-import { chromium, expect } from '@playwright/test';
+import { chromium, devices, expect } from '@playwright/test';
+import { preview } from 'vite';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { initialSave, createRun, UPGRADES, ROOMS, experienceForLevel } from '../src/core.ts';
 
 await mkdir('artifacts',{recursive:true});
+const android=process.argv.includes('--android');
+const server=android?await preview({preview:{host:'127.0.0.1',port:4180,strictPort:true}}):null;
+const origin=android?'http://127.0.0.1:4180':'http://localhost:4173';
 const browser=await chromium.launch({headless:true});
 const errors=[];
-const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1});
+const context=await browser.newContext(android?devices['Pixel 5']:{viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1});
 let page=await context.newPage();
 const watch=p=>{p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});};watch(page);
 const report=[];
 try {
-  await page.goto('http://localhost:4173/');
+  await page.goto(origin);
   await expect(page.locator('#offline')).toContainText('已可離線遊玩',{timeout:45000});
+  await page.locator('#settings').click();await expect(page.locator('#install-help')).toContainText('安裝、離線與更新');
+  await page.locator('#install-help').click();
+  await expect(page.locator('.install-steps')).toContainText('Chrome');
+  await expect(page.locator('.install-steps')).toContainText('加入主畫面');
+  if(android){
+    await expect(page.locator('.install-steps')).not.toContainText('Safari');
+    await page.screenshot({path:'artifacts/install-android.png',fullPage:true});
+  }
+  await expect(page.locator('#check-update')).toBeVisible();await page.locator('#close').click();
+  report.push('Installation help includes Android Chrome home-screen steps and the shared update entry.');
   const touchIcon=await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
   assert.ok(touchIcon.startsWith('data:image/png;base64,'),'Home-screen icon must not require a separate authenticated request.');
   assert.deepEqual(Buffer.from(touchIcon.split(',')[1],'base64'),await readFile('public/assets/icon-180.png'));
@@ -35,7 +49,7 @@ try {
   report.push('Single-pointer drag starts combat; pause freezes timer; camp preserves checkpoint.');
 
   await context.setOffline(true);await page.close();page=await context.newPage();watch(page);
-  await page.goto('http://localhost:4173/');
+  await page.goto(origin);
   await expect(page.locator('#resume')).toBeVisible();
   await expect(page.locator('#offline')).toContainText('已可離線遊玩');
   assert.deepEqual(await page.evaluate(async()=>{
@@ -126,9 +140,9 @@ try {
   report.push('Offline boss checkpoint restores entry health; pause freezes both health bars; actual boss victory settles once after reload.');
 
   const desktop=await browser.newContext({viewport:{width:1440,height:1000}});
-  const desktopPage=await desktop.newPage();watch(desktopPage);await desktopPage.goto('http://localhost:4173/');await expect(desktopPage.locator('#journey')).toBeVisible();
+  const desktopPage=await desktop.newPage();watch(desktopPage);await desktopPage.goto(origin);await expect(desktopPage.locator('#journey')).toBeVisible();
   await desktopPage.screenshot({path:'artifacts/camp-desktop.png',fullPage:true});await desktop.close();
   assert.deepEqual(errors,[],'Unexpected browser errors');
-  await writeFile('artifacts/browser-report.json',JSON.stringify({passed:report,errors,limitations:['Chromium mobile emulation is not iPhone Safari hardware.','Native WebMCP context unavailable.','Two-hour battery/thermal and seven-day retention require device testing.']},null,2));
+  await writeFile(android?'artifacts/android-browser-report.json':'artifacts/browser-report.json',JSON.stringify({passed:report,errors,limitations:['Chromium mobile emulation is not Android Chrome or iPhone Safari hardware.','Native WebMCP context unavailable.','Two-hour battery/thermal and seven-day retention require device testing.']},null,2));
   console.log(report.join('\n'));console.log('Browser checks passed.');
-} finally {await browser.close();}
+} finally {await browser.close();if(server)await new Promise(resolve=>server.httpServer.close(resolve));}

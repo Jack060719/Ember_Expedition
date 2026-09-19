@@ -6,6 +6,17 @@
 
 新加入的 agent 從 [AGENTS.md](AGENTS.md) 開始，依序閱讀 [專案目的與決策](PROJECT.md)、[目前狀態與交接](STATUS.md)、[下一版規劃](ROADMAP.md)。這些文件可隨專案移到 Orca 或其他環境，不依賴原有聊天紀錄；本 README 提供執行、安裝與現行數值說明。
 
+## Android 安裝
+
+Android 支援已合併 main，並備有[Android 私人測試站](https://ember-expedition-android-test.asterina-co.chatgpt.site)，可直接用它執行下列安裝步驟。請以已獲授權的電子郵件所對應的 ChatGPT 帳號登入；測試站存檔與正式站分開，正式站尚未發布這次 Android 更新。
+
+1. 用 Android 的 Chrome 一般分頁開啟要安裝的遊戲網址（目前測試請用上方測試站），依私人網站提示登入。若從通訊軟體開啟，先改用 Chrome。
+2. 點右上角「⋮」→「加入主畫面」或「安裝應用程式」，依 Chrome 顯示的選項完成。
+3. **從主畫面圖示再次開啟**，保持連網直到左上角顯示「已可離線遊玩」。
+4. 開啟飛航模式並關閉 Wi-Fi，關閉遊戲後從原圖示重開，確認可進入營地與戰鬥。
+
+這是共用原網站的主畫面 App，不需下載 APK。請固定使用同一個 Chrome 瀏覽環境與原網址；其他瀏覽器或裝置的進度需透過「設定與存檔」匯出／匯入 JSON。Android 分支的本機驗證、實機待辦與發布狀態見 [STATUS.md](STATUS.md)。
+
 ## iPhone 安裝
 
 1. 用 Safari 開啟發布網址，依私人網站的提示登入。
@@ -14,6 +25,8 @@
 4. 開啟飛航模式並關閉 Wi-Fi，重新開啟遊戲確認。
 
 Safari 分頁和主畫面 App 的儲存資料可能不同，請在主畫面版本開始正式遊玩。遊戲內「設定與存檔」可匯出／匯入 JSON 備份；清除網站資料會失去本機進度。
+
+## 離線與日後更新（Android／iPhone 共用）
 
 下載未完成時，點左上角離線狀態，查看原因並選「重新下載缺少的內容」。已安裝版本會補回缺檔；首次安裝失敗則重新下載，不影響遊戲存檔。離線狀態視窗會顯示目前離線版本，並提供「檢查更新」；返回遊戲時也會檢查新版。若顯示有新版本，完成或撤退結束目前遠征後，在同一視窗套用更新。「已可離線遊玩」只代表離線內容齊全，並不等於剛確認為最新版；檢查失敗會保留離線功能與錯誤提示。
 
@@ -57,9 +70,12 @@ npx playwright install chromium
 npm run test:browser
 npm run test:arena
 npm run test:offline
+npm run test:android
 ```
 
 瀏覽器測試需要 4173 的正式建置預覽；機制測試需要 5173 的開發伺服器。報告與畫面輸出到未追蹤的 `artifacts/`。測試使用獨立無痕環境和本遊戲的匯入介面，不讀取個人瀏覽器資料。
+
+`npm run test:android` 在建置後執行，會依序自建本工作樹的預覽／開發／離線測試伺服器並在結束時關閉；全部使用 4180 埠，執行前須確認沒有其他測試佔用。以 Playwright Pixel 5 的 Chrome UA、觸控與畫面尺寸跑完整瀏覽器流程、49 項戰鬥／觸控檢查及離線更新回歸，另驗證私人 manifest 在快取建立前可帶登入憑證讀取，並確認 iPhone 安裝提示保留。Android 報告為 `artifacts/android-browser-report.json`、`android-arena-report.json`，安裝畫面為 `install-android.png`；離線結果輸出至終端。這些是 Chromium 模擬，不含 Android 系統安裝面板、真正 OAuth 登入或手機效能驗收。
 
 `src/core.ts` 為規則與存檔格式；`src/arena.ts` 為 Phaser 場景、碰撞和單指操作；`src/main.ts` 為營地、主線與存檔操作。`scripts/build-offline.mjs` 將正式輸出全部檔案加入具內容版本的 Service Worker 快取。所有遊玩依賴都在同一來源，無執行時 CDN、帳號 API 或線上關卡。
 
@@ -73,7 +89,14 @@ npm run test:offline
 
 離線回歸測試另涵蓋缺檔重試、登入頁防誤存、首頁正規化與版本更新；觸控測試涵蓋實際觸控事件、多指干擾、取消與移出畫面。可安裝 Playwright WebKit 後執行 `npm run test:offline -- --webkit`；Windows WebKit 的 `setOffline` 會使最小快取頁面也出現內部錯誤，因此此模式改為中斷伺服器連線驗證快取，不等於 iPhone 飛航模式測試。
 
-待實機驗證：iOS 17+ Safari／主畫面、長時間發熱與耗電、兩小時連玩及相隔七天的離線重開。系統持久儲存申請不保證網站資料永遠不會被清理。原生 WebMCP 執行環境目前未連線，兩個選用介面的實際註冊尚未驗證。
+待實機驗證：Android 最新版 Chrome 加入主畫面後的圖示、單指操作、切背景暫停、登入往返、更新保留進度與飛航模式冷啟動；iOS 17+ Safari／主畫面、長時間發熱與耗電、兩小時連玩及相隔七天的離線重開。系統持久儲存申請不保證網站資料永遠不會被清理。原生 WebMCP 執行環境目前未連線，兩個選用介面的實際註冊尚未驗證。
+
+## 維護者發布更新
+
+1. 保留原 HTTPS 網址、manifest 的 `id`／`start_url`／`scope`、IndexedDB 名稱與 `.openai/hosting.json` 身分。網站目前仍需登入；manifest 連結使用 `crossorigin="use-credentials"`，依 [Chrome 官方說明](https://web.dev/articles/add-manifest) 攜帶登入憑證。
+2. 執行 `npm test`、`npm run build` 與 `npm run test:android`，再檢查受影響的其他功能。建置會依內容產生新的 `sw.js` 快取版本，遊戲更新不依賴手動修改 `package.json` 版號；Save v2 是另一個獨立的存檔版本。
+3. 將同一次建置的完整 `dist/` 發布到原網站。合併 main 不等於更新正式站；實際發布另記錄於 STATUS。
+4. 在已有舊版與存檔的 Android 主畫面 App 保持連網、檢查更新，確認遠征中無法套用，完成或撤退後才更新。比對存檔、離線版號，再用飛航模式關閉並重開遊戲驗證。若登入到期，使用遊戲內「重新登入以更新」恢復；更新不以重裝或清除資料為步驟。
 
 ## 美術來源
 

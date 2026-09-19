@@ -1,4 +1,4 @@
-import { chromium, webkit, expect } from '@playwright/test';
+import { chromium, webkit, devices, expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 const root=path.resolve('dist'), origin='http://127.0.0.1:4180';
 const useWebKit=process.argv.includes('--webkit');
+const android=process.argv.includes('--android'), mobile=android?devices['Pixel 5']:{};
 let blocked=false, signIn=false, redirectIndex=false, nextVersion=false, unreachable=false, forestRequests=0;
 let authGeneration=0, loginVisits=0;
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg','.webmanifest':'application/manifest+json'};
@@ -40,7 +41,31 @@ const browser=await (useWebKit?webkit:chromium).launch({headless:true});
 // Windows WebKit fails even a minimal cached page with setOffline; drop server connections instead.
 async function disconnect(context){if(useWebKit)unreachable=true;else await context.setOffline(true);}
 try{
-  const context=await browser.newContext(), page=await context.newPage();
+  if(android){
+    authGeneration=1;
+    const installing=await browser.newContext({...mobile,serviceWorkers:'block'});
+    await installing.addCookies([{name:'session',value:'1',url:origin}]);
+    const installPage=await installing.newPage();await installPage.goto(origin);
+    const cdp=await installing.newCDPSession(installPage), manifest=await cdp.send('Page.getAppManifest');
+    assert.ok(manifest.data,'Chrome must load the protected manifest using the signed-in session, before any offline cache exists.');
+    assert.deepEqual(manifest.errors,[]);
+    const data=JSON.parse(manifest.data);
+    assert.equal(data.id,'/');assert.equal(data.start_url,'/');assert.equal(data.scope,'/');
+    assert.equal(data.display,'standalone');assert.equal(data.orientation,'portrait');
+    for(const size of [192,512]){
+      const icon=data.icons.find(icon=>icon.sizes===`${size}x${size}`);assert.ok(icon);
+      assert.deepEqual(await installPage.evaluate(async src=>{const image=new Image();image.src=src;await image.decode();return [image.naturalWidth,image.naturalHeight];},icon.src),[size,size]);
+    }
+    await installing.close();authGeneration=0;
+    console.log('PASS Android Chrome reads the authenticated manifest and both icons before offline setup; installed app identity stays stable');
+    const iphone=await browser.newContext({...devices['iPhone 13'],serviceWorkers:'block'});
+    const iphonePage=await iphone.newPage();await iphonePage.goto(origin);await iphonePage.locator('#offline').click();
+    await expect(iphonePage.locator('.install-steps')).toContainText('Safari');
+    await expect(iphonePage.locator('.install-steps')).toContainText('分享');
+    await expect(iphonePage.locator('.install-steps')).not.toContainText('Chrome');
+    await iphone.close();console.log('PASS iPhone installation help retains Safari sharing instructions');
+  }
+  const context=await browser.newContext(mobile), page=await context.newPage();
   await page.goto(origin);
   await expect(page.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});
   await page.locator('#journey').click();await page.locator('#begin').click();await page.locator('#back-camp').click();
@@ -59,7 +84,7 @@ try{
   await context.close();unreachable=false;console.log('PASS missing cache repairs on retry; open dialog updates; save survives offline cold launch');
 
   blocked=true;signIn=true;
-  const denied=await browser.newContext(), deniedPage=await denied.newPage();await deniedPage.goto(origin);await deniedPage.locator('#offline').click();
+  const denied=await browser.newContext(mobile), deniedPage=await denied.newPage();await deniedPage.goto(origin);await deniedPage.locator('#offline').click();
   await expect(deniedPage.locator('#retry-offline')).toBeEnabled({timeout:25000});
   await expect(deniedPage.locator('#offline')).not.toContainText('已可離線遊玩');
   await expect(deniedPage.locator('#offline-panel')).toContainText('登入');
@@ -75,12 +100,12 @@ try{
   await denied.close();console.log('PASS sign-in HTML cannot count as downloaded artwork; failed first install can retry');
 
   redirectIndex=true;
-  const normalized=await browser.newContext(), normalizedPage=await normalized.newPage();await normalizedPage.goto(origin);
+  const normalized=await browser.newContext(mobile), normalizedPage=await normalized.newPage();await normalizedPage.goto(origin);
   await expect(normalizedPage.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});
   await disconnect(normalized);await normalizedPage.reload();await expect(normalizedPage.locator('#journey')).toBeVisible();
   await normalized.close();unreachable=false;console.log('PASS canonical home route installs and reopens offline');
 
-  const updating=await browser.newContext(), updatePage=await updating.newPage();await updatePage.goto(origin);
+  const updating=await browser.newContext(mobile), updatePage=await updating.newPage();await updatePage.goto(origin);
   await expect(updatePage.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});
   await updatePage.locator('#offline').click();
   await expect(updatePage.locator('#offline-version')).toContainText(/目前離線版本：[0-9a-f]{12}/);
@@ -96,7 +121,7 @@ try{
   await updating.close();unreachable=false;console.log('PASS manual update check, installed version display, activation and offline play');
 
   nextVersion=false;
-  const resuming=await browser.newContext(), resumePage=await resuming.newPage();await resumePage.goto(origin);
+  const resuming=await browser.newContext(mobile), resumePage=await resuming.newPage();await resumePage.goto(origin);
   await expect(resumePage.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});
   await resumePage.locator('#journey').click();await resumePage.locator('#begin').click();await resumePage.locator('#back-camp').click();
   nextVersion=true;
@@ -107,7 +132,7 @@ try{
   await resuming.close();console.log('PASS returning to the app detects an update without activating during an expedition');
 
   nextVersion=false;authGeneration=1;
-  const recovering=await browser.newContext({viewport:{width:390,height:844}});
+  const recovering=await browser.newContext(android?mobile:{viewport:{width:390,height:844}});
   await recovering.addCookies([{name:'session',value:'1',url:origin}]);
   const recoveryPage=await recovering.newPage();await recoveryPage.goto(origin);
   await expect(recoveryPage.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});

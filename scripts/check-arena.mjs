@@ -1,10 +1,14 @@
-import { chromium } from '@playwright/test';
+import { chromium, devices } from '@playwright/test';
+import { createServer } from 'vite';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
+const android=process.argv.includes('--android');
+const server=android?await createServer({server:{host:'127.0.0.1',port:4180,strictPort:true}}):null;
+await server?.listen();
 const browser=await chromium.launch({headless:true});
-const page=await browser.newPage({viewport:{width:430,height:840},isMobile:true,hasTouch:true});
+const page=await browser.newPage(android?devices['Pixel 5']:{viewport:{width:430,height:840},isMobile:true,hasTouch:true});
 try{
-  await page.goto('http://localhost:5173/');
+  await page.goto(android?'http://127.0.0.1:4180':'http://localhost:5173/');
   const result=await page.evaluate(async()=>{
     const {mountArena}=await import('/src/arena.ts');
     const {initialSave,createRun,upgradeChoices,UPGRADES}=await import('/src/core.ts');
@@ -271,7 +275,7 @@ try{
   await touch('touchMove',[point(1,240,710)]);const afterExit=await step();assert.equal(afterExit.x,beforeExit.x);assert.equal(afterExit.owned,false);
   await touch('touchEnd',[]);await page.evaluate(()=>window.touchArena.game.runDestroy());
   result.push({test:'native touch movement, second-finger release, cancellation and canvas exit',ok:true});
-  await writeFile('artifacts/arena-report.json',JSON.stringify(result,null,2));
+  await writeFile(android?'artifacts/android-arena-report.json':'artifacts/arena-report.json',JSON.stringify(result,null,2));
   for(const r of result)assert.equal(r.ok,true,r.test+': '+JSON.stringify(r));
   console.log(result.map(r=>'PASS '+r.test).join('\n'));
-}finally{await browser.close();}
+}finally{await browser.close();await server?.close();}
