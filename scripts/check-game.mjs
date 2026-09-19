@@ -1,5 +1,5 @@
 import { chromium, expect } from '@playwright/test';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { initialSave, createRun, UPGRADES, ROOMS, experienceForLevel } from '../src/core.ts';
 
@@ -13,6 +13,9 @@ const report=[];
 try {
   await page.goto('http://localhost:4173/');
   await expect(page.locator('#offline')).toContainText('已可離線遊玩',{timeout:45000});
+  const touchIcon=await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
+  assert.ok(touchIcon.startsWith('data:image/png;base64,'),'Home-screen icon must not require a separate authenticated request.');
+  assert.deepEqual(Buffer.from(touchIcon.split(',')[1],'base64'),await readFile('public/assets/icon-180.png'));
   await page.screenshot({path:'artifacts/camp-mobile.png',fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   report.push('Mobile camp renders without horizontal overflow; all offline assets cached.');
@@ -35,6 +38,11 @@ try {
   await page.goto('http://localhost:4173/');
   await expect(page.locator('#resume')).toBeVisible();
   await expect(page.locator('#offline')).toContainText('已可離線遊玩');
+  assert.deepEqual(await page.evaluate(async()=>{
+    const icon=new Image();icon.src=document.querySelector('link[rel="apple-touch-icon"]').href;
+    await icon.decode();return [icon.naturalWidth,icon.naturalHeight];
+  }),[180,180]);
+  report.push('Original 180px home-screen icon is embedded in the page and decodes offline without an authenticated image request.');
   await page.locator('#resume').click();await page.locator('#enter-room').click();
   await expect(page.locator('#timer')).not.toHaveText('—');
   await page.locator('#pause').click();await page.locator('#checkpoint').click();
