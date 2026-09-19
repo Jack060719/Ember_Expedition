@@ -7,15 +7,15 @@ try{
   await page.goto('http://localhost:5173/');
   const result=await page.evaluate(async()=>{
     const {mountArena}=await import('/src/arena.ts');
-    const {initialSave,createRun,upgradeChoices,puzzleInitial,puzzleHint,UPGRADES}=await import('/src/core.ts');
+    const {initialSave,createRun,upgradeChoices,UPGRADES}=await import('/src/core.ts');
     document.querySelector('#app').remove();
     const results=[];
-    async function mount(run,puzzle=false){
+    async function mount(run){
       const host=document.createElement('div');host.style.cssText='width:390px;height:660px';document.body.append(host);
-      const events={complete:0,defeat:0,upgrade:0,puzzle:0};
+      const events={complete:0,defeat:0,upgrade:0,phases:[]};
       let loaded;const ready=new Promise(resolve=>loaded=resolve);
-      const hooks={hud(){loaded();},upgrade(r,choose){events.upgrade++;const choices=upgradeChoices(r);if(choices.length)choose(choices[0].id);},complete(){events.complete++;},defeat(){events.defeat++;},puzzle(){events.puzzle++;},paused(){}};
-      const arena=mountArena(host,run,hooks,puzzle);
+      const hooks={hud(_r,_remaining,_boss,phase){if(events.phases.at(-1)!==phase)events.phases.push(phase);loaded();},upgrade(r,choose){events.upgrade++;const choices=upgradeChoices(r);if(choices.length)choose(choices[0].id);},complete(){events.complete++;},defeat(){events.defeat++;},paused(){}};
+      const arena=mountArena(host,run,hooks);
       await ready;
       arena.game.loop.stop();
       return {arena,events,host,close(){arena.game.runDestroy();host.remove();}};
@@ -73,8 +73,8 @@ try{
       const run=createRun(profile,0,'staff','normal',8),t=await mount(run),s=t.arena.scene;
       s.clock=200;s.run.xp=1000;s.spawnTimer=10000;s.update(0,33);
       const first=t.events.upgrade===1&&t.events.complete===0;
-      s.run.xp=0;s.update(33,33);
-      results.push({test:'upgrade resolves before room completion',ok:first&&t.events.complete===1});t.close();
+      for(let i=0;i<200;i++)s.update(i*33,33);
+      results.push({test:'all pending upgrades resolve before victory and completion happens once',ok:first&&t.events.upgrade>1&&t.events.complete===1&&s.phase==='victory'});t.close();
     }
     {
       const run=createRun(profile,0,'staff','normal',8);for(const u of UPGRADES)run.upgrades[u.id]=u.max;
@@ -82,21 +82,75 @@ try{
       results.push({test:'maxed upgrades never open empty choice',ok:t.events.upgrade===0});t.close();
     }
     for(let chapter=0;chapter<3;chapter++){
-      const run=createRun(profile,chapter*2+1,'staff','normal',9);run.room=7;
+      const run=createRun(profile,chapter*2+1,'staff','normal',9);run.room=6;
       const t=await mount(run),s=t.arena.scene,boss=s.enemies.find(e=>e.type>=6);
       for(let i=0;i<180;i++)s.enemyStep(1/30);
       const attacked=chapter===0?boss.sprite.y!==130:s.shots.length>0;
       s.hit(boss,boss.hp+1);s.update(0,33);
-      results.push({test:'chapter '+(chapter+1)+' boss pattern and victory',ok:attacked&&t.events.complete===1});t.close();
+      const notAbrupt=t.events.complete===0;
+      for(let i=0;i<180;i++)s.update(i*33,33);
+      results.push({test:'chapter '+(chapter+1)+' boss pattern and delayed victory',ok:attacked&&notAbrupt&&t.events.complete===1});t.close();
     }
-    for(let i=0;i<9;i++){
-      const run=createRun(profile,0,'staff','normal',i);run.room=3;run.puzzle={mask:puzzleInitial(i),moves:0};
-      const t=await mount(run,true),s=t.arena.scene;
-      for(let n=0;n<10&&s.run.puzzle.mask!==511;n++){
-        s.hero.setPosition(195,550);s.puzzleStep(.3);
-        const tile=puzzleHint(s.run.puzzle.mask),target=s.tiles[tile];s.hero.setPosition(target.x,target.y);s.puzzleStep(.3);
+    {
+      const run=createRun(profile,1,'staff','normal',9);run.room=6;
+      const t=await mount(run),s=t.arena.scene;
+      for(let i=0;i<100;i++)s.update(i*1000/30,1000/30);
+      results.push({test:'living boss supplies two eight-enemy reinforcement waves within 3.4 seconds',ok:s.nextId===17&&s.enemies.some(e=>e.type===6&&e.hp>0)&&t.events.complete===0});t.close();
+    }
+    {
+      const t=await mount(createRun(profile,0,'blade','normal',10)),s=t.arena.scene;
+      s.spawnEnemy(0,s.hero.x+55,s.hero.y);const foe=s.enemies[0];foe.hp=9999;s.autoAttack();
+      const health=foe.hp;s.drawVisuals(.04);s.drawVisuals(.04);
+      const visible=s.visuals.some(v=>v.kind==='slash'&&v.sprite.active);
+      s.drawVisuals(.3);
+      results.push({test:'slash persists across frames, expires and deals damage only once',ok:visible&&foe.hp===health&&!s.visuals.some(v=>v.kind==='slash')});
+      s.run.upgrades={storm:2,frost:2,nova:2};s.stormTimer=0;s.novaTimer=0;s.skills(.01);
+      s.drawVisuals(.08);
+      results.push({test:'lightning and nova have lasting effects and froststorm keeps its longer slow',ok:s.visuals.some(v=>v.kind==='bolt')&&s.visuals.some(v=>v.kind==='ring')&&foe.slow===2.5});t.close();
+    }
+    {
+      const t=await mount(createRun(profile,0,'staff','normal',11)),s=t.arena.scene;
+      s.hero.setPosition(255,300);s.spawnEnemy(5,195,300);const guard=s.enemies[0];guard.attack=0;
+      const hp=s.run.hp;s.enemyStep(.2);const windup=s.run.hp===hp;s.enemyStep(.4);
+      const struck=s.run.hp<hp;
+      guard.attack=0;s.hitTimer=0;const after=s.run.hp;s.enemyStep(.1);s.hero.setPosition(130,300);s.enemyStep(.5);
+      results.push({test:'shield sentinel telegraphs a dodgeable melee strike and never shoots',ok:windup&&struck&&s.run.hp===after&&s.shots.length===0});t.close();
+    }
+    {
+      const t=await mount(createRun(profile,0,'staff','normal',12)),s=t.arena.scene;
+      s.spawnTimer=999;s.attackTimer=999;s.spawnEnemy(0,25,80);const foe=s.enemies[0];foe.hp=10000;foe.speed=0;
+      s.clock=s.duration()-8;s.update(0,33);const warned=s.phase==='finalWave';
+      s.clock=s.duration();for(let i=0;i<20;i++)s.update(i*33,33);
+      const waiting=s.phase==='clearing'&&t.events.complete===0&&s.enemies.length===1;
+      s.hit(foe,20000);s.shoot(195,480,0,0,100,true);s.update(0,33);
+      const safe=s.phase==='loot'&&s.shots.every(shot=>!shot.hostile)&&t.events.complete===0;
+      for(let i=0;i<180;i++)s.update(i*33,33);
+      results.push({test:'final wave stops spawning, waits for remaining enemies, vacuums loot and celebrates',ok:warned&&waiting&&safe&&s.drops.length===0&&t.events.complete===1&&t.events.defeat===0&&t.events.phases.includes('victory')});t.close();
+    }
+    {
+      const run=createRun(profile,1,'staff','normal',13);run.room=6;
+      const t=await mount(run),s=t.arena.scene;s.attackTimer=999;s.spawnEnemy(0,25,80);const add=s.enemies.at(-1);add.hp=10000;add.speed=0;
+      s.hit(s.enemies[0],100000);s.update(0,33);const waiting=s.phase==='clearing'&&t.events.complete===0;
+      s.hit(add,100000);for(let i=0;i<180;i++)s.update(i*33,33);
+      results.push({test:'boss defeat stops reinforcements but waits for the remaining guard',ok:waiting&&t.events.complete===1});t.close();
+    }
+    {
+      const run=createRun(profile,0,'staff','normal',14);run.upgrades={ember:2,nova:2};
+      const t=await mount(run),s=t.arena.scene;s.novaTimer=999;
+      for(let i=0;i<161;i++){s.spawnEnemy(0,70,100);s.enemies.at(-1).burn=2;}
+      const capped=s.enemies.length===160;
+      s.hit(s.enemies[0],1000);for(let i=0;i<10;i++)s.skills(.01);
+      results.push({test:'wildfire chain clears 160 capped enemies without duplicate kills or unbounded recursion',ok:capped&&s.run.kills===160&&s.drops.length===160&&s.explosions.length===0});t.close();
+    }
+    {
+      const damage=[];
+      for(const fps of [30,60]){
+        const run=createRun(profile,0,'staff','normal',15);run.upgrades={orbit:1};
+        const t=await mount(run),s=t.arena.scene;s.spawnEnemy(0,s.hero.x+78.75,s.hero.y);const foe=s.enemies[0];foe.hp=10000;foe.speed=0;
+        for(let i=0;i<fps*3;i++){s.enemyStep(1/fps);s.skills(1/fps);}
+        damage.push(10000-foe.hp);t.close();
       }
-      results.push({test:'walk-on puzzle '+i+' solves',ok:t.events.complete===1});t.close();
+      results.push({test:'orbit damage is stable at 30 and 60 fps',ok:Math.abs(damage[0]-damage[1])<.01,damage});
     }
     return results;
   });
@@ -104,7 +158,7 @@ try{
     const {mountArena}=await import('/src/arena.ts'),{initialSave,createRun}=await import('/src/core.ts');
     const host=document.createElement('div');host.style.cssText='width:390px;height:660px';document.body.append(host);
     await new Promise(resolve=>{
-      window.touchArena=mountArena(host,createRun(initialSave().profile,0,'staff','normal',1),{hud(){resolve();},upgrade(){},complete(){},defeat(){},puzzle(){},paused(){}});
+      window.touchArena=mountArena(host,createRun(initialSave().profile,0,'staff','normal',1),{hud(){resolve();},upgrade(){},complete(){},defeat(){},paused(){}});
     });
     window.touchArena.game.loop.stop();
   });

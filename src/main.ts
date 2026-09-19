@@ -1,5 +1,5 @@
 import './style.css';
-import { CHAPTERS, MISSIONS, WEAPONS, FACILITIES, ROOMS, UPGRADES, encounter, availableWeapons, createRun, finishRoom, settle, buyFacility, facilityCost, puzzleInitial, upgradeChoices, validateSave, type Save, type Run, type Weapon, type Difficulty, type Facility } from './core.ts';
+import { CHAPTERS, MISSIONS, WEAPONS, FACILITIES, ROOMS, UPGRADES, encounter, availableWeapons, createRun, finishRoom, settle, buyFacility, facilityCost, EVOLUTIONS, SYNERGIES, isEvolved, meetsRequirements, experienceForLevel, permanentGrowth, upgradeChoices, validateSave, type Save, type Run, type Weapon, type Difficulty, type Facility } from './core.ts';
 import { loadSave, writeSave } from './storage.ts';
 import { watchOffline, prepareOffline, applyUpdate, type OfflineState } from './offline.ts';
 import { mountArena, type Arena } from './arena.ts';
@@ -8,7 +8,7 @@ const app=document.querySelector<HTMLDivElement>('#app')!;
 let save:Save, selectedMission=0, selectedWeapon:Weapon='staff', difficulty:Difficulty='normal';
 let tab:'expedition'|'camp'|'journal'='expedition';
 let arena:{scene:Arena;game:Phaser.Game}|null=null;
-let screen='camp', busy=false, saveError=false, writeQueue=Promise.resolve();
+let screen='camp', busy=false, saveError=false;
 let offline:OfflineState={ready:false,working:false,update:false,message:'準備離線內容'};
 let audio:AudioContext|undefined;
 const $=(selector:string)=>document.querySelector<HTMLElement>(selector);
@@ -21,13 +21,7 @@ function chime(notes=[440,660]){
   try{audio??=new AudioContext();void audio.resume();notes.forEach((note,i)=>{const o=audio!.createOscillator(),g=audio!.createGain(),t=audio!.currentTime+i*.08;o.type='sine';o.frequency.value=note;g.gain.setValueAtTime(.025,t);g.gain.exponentialRampToValueAtTime(.0001,t+.3);o.connect(g);g.connect(audio!.destination);o.start(t);o.stop(t+.31);});}catch{/* Sound is optional. */}
 }
 async function persist(next:Save):Promise<boolean>{
-  try{await writeQueue;await writeSave(next);save=next;saveError=false;return true;}catch(e){saveError=true;toast((e as Error).message);return false;}
-}
-function queuePuzzle(run:Run){
-  if(!save.run||save.run.id!==run.id)return;
-  save.run.puzzle=structuredClone(run.puzzle);
-  const snapshot=structuredClone(save);
-  writeQueue=writeQueue.then(()=>writeSave(snapshot)).catch(e=>{saveError=true;toast(e.message);pause();});
+  try{await writeSave(next);save=next;saveError=false;return true;}catch(e){saveError=true;toast((e as Error).message);return false;}
 }
 function click(selector:string,fn:()=>void){$(selector)?.addEventListener('click',fn);}
 function closeModal(){document.querySelectorAll('.modal-backdrop').forEach(e=>e.remove());}
@@ -48,11 +42,11 @@ function renderCamp(){
   const content=$('#camp-content')!;
   if(tab==='expedition'){
     const cleared=selectedMission<save.profile.cleared;
-    content.innerHTML=`<div class="section-heading"><span class="eyebrow">${save.run?'YOUR JOURNEY CONTINUES':'YOUR NEXT CHAPTER'}</span><h2>${save.run?'火光還在等你':'下一段旅程'}</h2><p>${save.run?'接續上次的遠征，從最近的房間繼續。':'迷霧散去之前，讓燈火繼續亮著。'}</p></div>${save.run?resumeCard():`<article class="mission-card" style="--chapter-color:${chapter.color}"><div class="chapter-number">0${m.chapter+1} <span>/ 03</span></div><span class="kicker">${chapterNo[m.chapter]} · ${selectedMission%2+1}/2</span><h3>${chapter.name}</h3><p>${m.name}</p><div class="mission-meta"><span>◷ 15–20 分鐘</span><span>${cleared?'✓ 已探索':'待探索'} · ${difficulty==='hard'?'困難':'普通'}</span></div><button class="primary" id="journey">${cleared?'再次遠征':'啟程探索'} <span>↗</span></button></article><div class="loadout"><span class="micro-label">攜帶武器</span><div class="weapons">${(Object.keys(WEAPONS) as Weapon[]).map(w=>`<button data-weapon="${w}" class="weapon ${w===selectedWeapon?'selected':''}" ${availableWeapons(save.profile).includes(w)?'':'disabled'} aria-label="${WEAPONS[w].name}${availableWeapons(save.profile).includes(w)?'':'，需升級守燈工坊'}"><span>${WEAPONS[w].mark}</span>${WEAPONS[w].name.replace('星火','').replace('逐風','').replace('守燈','')}${availableWeapons(save.profile).includes(w)?'':' <small>鎖定</small>'}</button>`).join('')}</div><p class="weapon-note">${WEAPONS[selectedWeapon].detail}</p></div><div class="mission-controls"><button class="text-button" id="chapters">章節地圖 <span>→</span></button>${cleared?`<button class="text-button" id="difficulty">${difficulty==='hard'?'◆ 困難':'◇ 普通'} ⇄</button>`:''}</div>`}<div class="small-note">拖曳移動，攻擊與技能自動施放。<br>升級時停下來，選擇你的下一道光。</div>`;
+    content.innerHTML=`<div class="section-heading"><span class="eyebrow">${save.run?'YOUR JOURNEY CONTINUES':'YOUR NEXT CHAPTER'}</span><h2>${save.run?'火光還在等你':'下一段旅程'}</h2><p>${save.run?'接續上次的遠征，從最近的房間繼續。':'迷霧散去之前，讓燈火繼續亮著。'}</p></div>${save.run?resumeCard():`<article class="mission-card" style="--chapter-color:${chapter.color}"><div class="chapter-number">0${m.chapter+1} <span>/ 03</span></div><span class="kicker">${chapterNo[m.chapter]} · ${selectedMission%2+1}/2</span><h3>${chapter.name}</h3><p>${m.name}</p><div class="mission-meta"><span>◷ 約 8–12 分鐘</span><span>${cleared?'✓ 已探索':'待探索'} · ${difficulty==='hard'?'困難':'普通'}</span></div><button class="primary" id="journey">${cleared?'再次遠征':'啟程探索'} <span>↗</span></button></article><div class="loadout"><span class="micro-label">攜帶武器</span><div class="weapons">${(Object.keys(WEAPONS) as Weapon[]).map(w=>`<button data-weapon="${w}" class="weapon ${w===selectedWeapon?'selected':''}" ${availableWeapons(save.profile).includes(w)?'':'disabled'} aria-label="${WEAPONS[w].name}${availableWeapons(save.profile).includes(w)?'':'，需升級守燈工坊'}"><span>${WEAPONS[w].mark}</span>${WEAPONS[w].name.replace('星火','').replace('逐風','').replace('守燈','')}${availableWeapons(save.profile).includes(w)?'':' <small>鎖定</small>'}</button>`).join('')}</div><p class="weapon-note">${WEAPONS[selectedWeapon].detail}</p></div><div class="mission-controls"><button class="text-button" id="chapters">章節地圖 <span>→</span></button>${cleared?`<button class="text-button" id="difficulty">${difficulty==='hard'?'◆ 困難':'◇ 普通'} ⇄</button>`:''}</div>`}<div class="small-note">拖曳移動，攻擊與技能自動施放。<br>一把主武器，搭配雷電、伴星與震波。</div>`;
     click('#journey',startJourney);click('#resume',showMap);click('#chapters',showChapters);click('#difficulty',()=>{difficulty=difficulty==='normal'?'hard':'normal';renderCamp();});
     document.querySelectorAll<HTMLButtonElement>('[data-weapon]').forEach(b=>b.addEventListener('click',()=>{selectedWeapon=b.dataset.weapon as Weapon;renderCamp();}));
   }else if(tab==='camp'){
-    content.innerHTML=`<div class="section-heading"><span class="eyebrow">A PLACE TO RETURN TO</span><h2>把微光留在這裡</h2><p>帶回的火種，會成為下一次出發的力量。</p></div><div class="facilities">${(Object.keys(FACILITIES) as Facility[]).map(id=>{const f=FACILITIES[id],level=save.profile.facilities[id],max=level===f.max;return `<article class="facility"><div class="facility-icon">${f.icon}</div><div><h3>${f.name}<small>Lv. ${level}/${f.max}</small></h3><p>${f.description}</p><button data-facility="${id}" class="small-button" ${max||!!save.run||save.profile.embers<facilityCost(id,level)?'disabled':''}>${max?'已完成升級':`升級 · ✦ ${facilityCost(id,level)}`}</button></div></article>`;}).join('')}</div>${save.run?'<p class="small-note">完成遠征或撤退後，即可建設營地。</p>':''}`;
+    content.innerHTML=`<div class="section-heading"><span class="eyebrow">A PLACE TO RETURN TO</span><h2>把微光留在這裡</h2><p>永久強化起始能力，下一趟遠征清得更快。</p></div><div class="growth-summary"><span>永久傷害 <b>+${Math.round(permanentGrowth(save.profile).damage*100)}%</b></span><span>起始生命 <b>${100+save.profile.facilities.beacon*10}</b></span><span>經驗／火種 <b>+${Math.round(permanentGrowth(save.profile).experience*100)}%</b></span></div><div class="facilities">${(Object.keys(FACILITIES) as Facility[]).map(id=>{const f=FACILITIES[id],level=save.profile.facilities[id],max=level===f.max;return `<article class="facility"><div class="facility-icon">${f.icon}</div><div><h3>${f.name}<small>Lv. ${level}/${f.max}</small></h3><p>${f.description}</p><button data-facility="${id}" class="small-button" ${max||!!save.run||save.profile.embers<facilityCost(id,level)?'disabled':''}>${max?'已完成升級':`升級 · ✦ ${facilityCost(id,level)}`}</button></div></article>`;}).join('')}</div>${save.run?'<p class="small-note">完成遠征或撤退後，即可建設營地。</p>':''}`;
     document.querySelectorAll<HTMLButtonElement>('[data-facility]').forEach(b=>b.addEventListener('click',async()=>{if(busy)return;busy=true;try{if(await persist(buyFacility(save,b.dataset.facility as Facility))){chime([392,523,784]);renderCamp();}}catch(e){toast((e as Error).message);}busy=false;}));
   }else{
     content.innerHTML=`<div class="section-heading"><span class="eyebrow">THE WAYFARER'S NOTES</span><h2>旅人手記</h2><p>走過的路，都會留下微光。</p></div><div class="stats"><div><strong>${save.profile.expeditions}</strong><span>完成遠征</span></div><div><strong>${save.profile.totalKills}</strong><span>擊退敵人</span></div><div><strong>${save.profile.bestHard}</strong><span>困難通關</span></div></div><div class="journal">${CHAPTERS.map((c,i)=>`<article class="journal-entry ${save.profile.cleared<i*2?'locked':''}"><span class="kicker">${chapterNo[i]} · ${save.profile.cleared>i*2+1?'燈塔已點亮':'尚在迷霧中'}</span><h3>${c.name}</h3><p>${save.profile.cleared>i*2+1?c.ending:save.profile.cleared>=i*2?c.intro:'循著前方的燈火，才能讀到下一頁。'}</p></article>`).join('')}</div>`;
@@ -60,7 +54,7 @@ function renderCamp(){
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>b.addEventListener('click',()=>{tab=b.dataset.tab as typeof tab;renderCamp();}));
   click('#settings',settings);click('#offline',installation);
 }
-function resumeCard(){const r=save.run!,m=MISSIONS[r.mission];return `<article class="mission-card"><span class="kicker">${chapterNo[m.chapter]} · ${r.difficulty==='hard'?'困難':'普通'}</span><h3>${m.name}</h3><p>第 ${Math.min(8,r.room+1)} 個房間 · ${WEAPONS[r.weapon].name}</p><div class="mission-meta"><span>♡ ${Math.ceil(r.hp)}/${r.maxHp}</span><span>✦ ${r.embers} 待帶回</span></div><button class="primary" id="resume">繼續遠征 <span>↗</span></button></article>`;}
+function resumeCard(){const r=save.run!,m=MISSIONS[r.mission];return `<article class="mission-card"><span class="kicker">${chapterNo[m.chapter]} · ${r.difficulty==='hard'?'困難':'普通'}</span><h3>${m.name}</h3><p>${r.room>=ROOMS.length?'遠征完成，領取收穫':`第 ${r.room+1} / ${ROOMS.length} 個房間`} · ${WEAPONS[r.weapon].name}</p><div class="mission-meta"><span>♡ ${Math.ceil(r.hp)}/${r.maxHp}</span><span>✦ ${r.embers} 待帶回</span></div><button class="primary" id="resume">繼續遠征 <span>↗</span></button></article>`;}
 function showChapters(){
   modal(`<span class="eyebrow">CHOOSE YOUR PATH</span><h2>章節地圖</h2><div class="chapter-list">${MISSIONS.map((m,i)=>`<button data-mission="${i}" class="chapter-row ${i===selectedMission?'selected':''}" ${i>save.profile.cleared?'disabled':''}><span class="chapter-index">${String(i+1).padStart(2,'0')}</span><span><small>${chapterNo[m.chapter]}</small><strong>${m.name}</strong></span><span>${i<save.profile.cleared?'✓':i===save.profile.cleared?'→':'鎖'}</span></button>`).join('')}</div><button class="secondary full" id="close">返回營地</button>`);
   click('#close',closeModal);document.querySelectorAll<HTMLButtonElement>('[data-mission]').forEach(b=>b.addEventListener('click',()=>{selectedMission=Number(b.dataset.mission);renderCamp();}));
@@ -76,58 +70,69 @@ async function startJourney(){
   }
   busy=false;
 }
+function evolutionProgress(r:Run){
+  const evo=EVOLUTIONS[r.weapon];
+  return Object.entries(evo.requires).map(([id,n])=>{const u=UPGRADES.find(u=>u.id===id)!;return `${u.name} ${Math.min(r.upgrades[u.id]??0,n!)}/${n}`;}).join(' ＋ ');
+}
+function buildDetails(r:Run){
+  const evo=EVOLUTIONS[r.weapon],evolved=isEvolved(r);
+  return `<div class="evolution-card ${evolved?'unlocked':''}"><span class="kicker">主武器 · ${evolved?'已進化':'進化目標'}</span><h3>${evolved?evo.name:WEAPONS[r.weapon].name+' → '+evo.name}</h3><p>${evo.description}</p><strong>${evolved?'✦ 進化已啟動':evolutionProgress(r)}</strong></div><div class="skill-slots">${(['storm','orbit','nova'] as const).map(id=>{const u=UPGRADES.find(u=>u.id===id)!,n=r.upgrades[id]??0;return `<span class="${n?'learned':''}">${u.icon} ${u.name}<b>${n?'Lv. '+n:'未取得'}</b></span>`;}).join('')}</div><div class="synergy-list">${SYNERGIES.map(s=>`<div class="${meetsRequirements(r,s.requires)?'unlocked':''}"><strong>${meetsRequirements(r,s.requires)?'✦ ':'◇ '}${s.name}</strong><p>${s.description}</p><small>${Object.entries(s.requires).map(([id,n])=>{const u=UPGRADES.find(u=>u.id===id)!;return `${u.name} ${Math.min(r.upgrades[u.id]??0,n)}/${n}`;}).join(' ＋ ')}</small></div>`).join('')}</div>`;
+}
 function showMap(){
   destroyArena();closeModal();screen='map';busy=false;
   const r=save.run;if(!r){renderCamp();return;}
-  if(r.room>=8){void endExpedition('victory',r);return;}
-  const chapter=CHAPTERS[MISSIONS[r.mission].chapter];
-  app.innerHTML=`<main class="travel-shell"><header class="travel-header"><button class="icon-button" id="back-camp" aria-label="返回營地畫面">←</button><div><span class="eyebrow">${chapterNo[MISSIONS[r.mission].chapter]}</span><h2>${MISSIONS[r.mission].name}</h2></div><span class="currency">✦ ${r.embers}</span></header><section class="route-art ${chapter.asset}"><span class="kicker">${chapter.sub}</span><h1>${chapter.name}</h1><div class="route-nodes" aria-label="遠征進度">${ROOMS.map((_,i)=>`<span class="route-node ${i<r.room?'done':i===r.room?'current':''}">${i<r.room?'✓':i===3?'◇':i===7?'♜':i+1}</span>`).join('')}</div><div class="travel-health"><span>♡ ${Math.ceil(r.hp)} / ${r.maxHp}</span><span>Lv. ${r.level} · ${WEAPONS[r.weapon].name}</span></div></section><section class="route-content"><span class="eyebrow">ROOM ${String(r.room+1).padStart(2,'0')} / 08</span><h2>${r.room===3?'一道封存微光的機關':r.room===7?(r.mission%2?chapter.boss:'遺跡前的最後守衛'):encounter(r).name}</h2><p>${r.room===3?'踩上踏板會切換自己與相鄰的符文，全部點亮即可開啟寶箱。':r.room===7?'燈塔近在眼前。整理呼吸，迎向守衛。':'沿著燈火穩步前進，或深入暗處尋找更多火種。'}</p><div class="route-options">${r.room===3?`<button class="route-option" id="enter-puzzle"><span class="route-icon">◇</span><span><strong>符文寶庫</strong><small>無倒數 · 可重置與提示 · 額外火種</small></span><b>→</b></button><button class="text-button" id="skip-puzzle">繞過寶庫，繼續前進 →</button>`:r.room===7?`<button class="primary" data-route="safe">${r.mission%2?'挑戰首領':'突破最後防線'} →</button>`:`<button class="route-option" data-route="safe"><span class="route-icon green">⌁</span><span><strong>循光小徑</strong><small>敵群較少 · 進場恢復 8% 生命</small></span><b>→</b></button><button class="route-option" data-route="risk"><span class="route-icon gold">⚔</span><span><strong>深入迷霧</strong><small>敵群較密 · 更多經驗與火種</small></span><b>→</b></button>`}</div><div class="run-build">${Object.entries(r.upgrades).map(([id,n])=>{const u=UPGRADES.find(x=>x.id===id)!;return `<span title="${u.description}">${u.icon} ${u.name} ${n}</span>`;}).join('')||'<span>下一場戰鬥，會帶來新的力量。</span>'}</div><footer class="route-footer"><span>✓ 已保存至此房間</span><button class="text-button" id="retreat">帶著火種撤退</button></footer></section></main>`;
-  click('#back-camp',renderCamp);click('#retreat',confirmRetreat);
-  document.querySelectorAll<HTMLButtonElement>('[data-route]').forEach(b=>b.addEventListener('click',()=>void enterRoom(b.dataset.route as Run['route'])));
-  click('#enter-puzzle',()=>void enterRoom('safe'));click('#skip-puzzle',()=>void completeRoom(r,true));
+  if(r.room>=ROOMS.length){void endExpedition('victory',r);return;}
+  const chapter=CHAPTERS[MISSIONS[r.mission].chapter],last=r.room===ROOMS.length-1;
+  app.innerHTML=`<main class="travel-shell"><header class="travel-header"><button class="icon-button" id="back-camp" aria-label="返回營地畫面">←</button><div><span class="eyebrow">${chapterNo[MISSIONS[r.mission].chapter]}</span><h2>${MISSIONS[r.mission].name}</h2></div><span class="currency">✦ ${r.embers}</span></header><section class="route-art ${chapter.asset}"><span class="kicker">${chapter.sub}</span><h1>${chapter.name}</h1><div class="route-nodes" aria-label="遠征進度">${ROOMS.map((_,i)=>`<span class="route-node ${i<r.room?'done':i===r.room?'current':''}">${i<r.room?'✓':i===ROOMS.length-1?'♜':i+1}</span>`).join('')}</div><div class="travel-health"><span>♡ ${Math.ceil(r.hp)} / ${r.maxHp}</span><span>Lv. ${r.level} · ${isEvolved(r)?EVOLUTIONS[r.weapon].name:WEAPONS[r.weapon].name}</span></div></section><section class="route-content"><span class="eyebrow">ROOM ${String(r.room+1).padStart(2,'0')} / 07</span><h2>${last?(r.mission%2?chapter.boss:'燈塔守衛'):encounter(r).name}</h2><p>${last&&r.mission%2?'擊敗首領，清除殘兵，把火種帶回營地。':'擊退怪潮，收集經驗。最後一波結束後，清掉剩餘敵人即可過關。'}</p><div class="route-options"><button class="primary" id="enter-room">${last&&r.mission%2?'挑戰首領':'迎擊怪潮'} →</button><small>清場後自動收集掉落，並恢復 8% 生命</small></div>${buildDetails(r)}<div class="run-build">${Object.entries(r.upgrades).filter(([,n])=>n).map(([id,n])=>{const u=UPGRADES.find(x=>x.id===id)!;return `<span title="${u.description}">${u.icon} ${u.name} ${n}</span>`;}).join('')}</div><footer class="route-footer"><span>✓ 已保存至此房間</span><button class="text-button" id="retreat">帶著火種撤退</button></footer></section></main>`;
+  click('#back-camp',renderCamp);click('#retreat',confirmRetreat);click('#enter-room',()=>void enterRoom());
 }
-async function enterRoom(route:Run['route']){
+async function enterRoom(){
   if(busy||!save.run)return;busy=true;
-  const next=structuredClone(save),r=next.run!;r.route=route;
-  if(r.room===3&&!r.puzzle)r.puzzle={mask:puzzleInitial((r.seed+r.mission)%9),moves:0};
-  if(!(await persist(next))){busy=false;return;}
-  showArena(r);busy=false;
+  showArena(save.run);busy=false;
 }
 function showArena(checkpoint:Run){
   closeModal();destroyArena();screen='arena';
-  const puzzle=checkpoint.room===3,c=CHAPTERS[MISSIONS[checkpoint.mission].chapter];
-  app.innerHTML=`<main class="game-shell"><header class="game-header"><button class="icon-button" id="pause" aria-label="暫停遊戲">Ⅱ</button><div><span class="eyebrow">${c.name} · ${checkpoint.room+1}/8</span><h2>${puzzle?'符文寶庫':checkpoint.room===7?checkpoint.mission%2?c.boss:'燈塔守衛':encounter(checkpoint).name}</h2></div><span class="game-time" id="timer">${puzzle?'◇':'—'}</span></header><div class="game-hud"><div class="health-track"><div id="health-fill"></div><span id="health-label">♡ ${Math.ceil(checkpoint.hp)} / ${checkpoint.maxHp}</span></div><span id="run-level">Lv. ${checkpoint.level}</span><span id="run-embers">✦ ${checkpoint.embers}</span></div><div class="xp-track"><div id="xp-fill"></div></div><div class="boss-track" id="boss-track" hidden><div id="boss-fill"></div></div><div class="game-viewport" id="game"></div><footer class="game-footer">${puzzle?'<button id="puzzle-hint" class="small-button">提示</button><span id="puzzle-count">走到踏板上</span><button id="puzzle-reset" class="small-button">重置</button>':'<span>☝ 拖曳移動 · 自動攻擊</span><span id="kills">擊退 0</span>'}</footer>${puzzle?'<button class="puzzle-skip text-button" id="puzzle-skip">離開寶庫，繼續前進 →</button>':''}</main>`;
-  const runtime=structuredClone(checkpoint);
-  if(!puzzle&&runtime.route==='safe'&&runtime.room!==7)runtime.hp=Math.min(runtime.maxHp,runtime.hp+runtime.maxHp*.08);
-  arena=mountArena($('#game')!,runtime,{
-    hud:(r,remaining,boss)=>{
+  const c=CHAPTERS[MISSIONS[checkpoint.mission].chapter];
+  app.innerHTML=`<main class="game-shell"><header class="game-header"><button class="icon-button" id="pause" aria-label="暫停遊戲">Ⅱ</button><div><span class="eyebrow">${c.name} · ${checkpoint.room+1}/${ROOMS.length}</span><h2>${checkpoint.room===ROOMS.length-1?checkpoint.mission%2?c.boss:'燈塔守衛':encounter(checkpoint).name}</h2></div><span class="game-time" id="timer">—</span></header><div class="game-hud"><div class="health-track"><div id="health-fill"></div><span id="health-label">♡ ${Math.ceil(checkpoint.hp)} / ${checkpoint.maxHp}</span></div><span id="run-level">Lv. ${checkpoint.level}</span><span id="run-embers">✦ ${checkpoint.embers}</span></div><div class="xp-track"><div id="xp-fill"></div></div><div class="game-phase" id="game-phase" role="status">迎擊怪潮</div><div class="boss-track" id="boss-track" hidden><div id="boss-fill"></div></div><button class="combat-build" id="build-info" aria-label="查看武器進化與技能構築"></button><div class="game-viewport" id="game"><div class="phase-banner" id="phase-banner" aria-hidden="true"></div></div><footer class="game-footer"><span>拖曳移動 · 自動攻擊</span><span id="kills">擊退 0</span></footer></main>`;
+  let lastPhase='',evolved=isEvolved(checkpoint);
+  arena=mountArena($('#game')!,structuredClone(checkpoint),{
+    hud:(r,remaining,boss,phase,enemies)=>{
       const hp=$('#health-fill');if(!hp)return;hp.style.width=`${r.hp/r.maxHp*100}%`;
       $('#health-label')!.textContent=`♡ ${Math.ceil(r.hp)} / ${r.maxHp}`;
       $('#run-level')!.textContent=`Lv. ${r.level}`;$('#run-embers')!.textContent=`✦ ${r.embers}`;
-      $('#xp-fill')!.style.width=`${Math.min(100,r.xp/(18+r.level*8)*100)}%`;
-      if(!puzzle)$('#timer')!.textContent=boss!==null?'首領':time(remaining);
+      $('#xp-fill')!.style.width=`${Math.min(100,r.xp/experienceForLevel(r.level)*100)}%`;
+      $('#timer')!.textContent=phase==='clearing'?'清場':phase==='loot'||phase==='victory'?'✓':boss!==null?'首領':time(remaining);
       const bar=$('#boss-track')!;bar.hidden=boss===null;if(boss!==null)$('#boss-fill')!.style.width=`${Math.max(0,boss*100)}%`;
-      if($('#kills'))$('#kills')!.textContent=`擊退 ${r.kills}`;
+      $('#kills')!.textContent=`擊退 ${r.kills-checkpoint.kills}`;
+      $('#game-phase')!.textContent=phase==='finalWave'?'最後一波 · 即將停止增援':phase==='clearing'?`增援已停止 · 清除剩餘 ${enemies} 隻`:phase==='loot'?'區域肅清 · 正在收集掉落':phase==='victory'?'清場完成 · 火種已收集':boss!==null?'擊敗首領與守衛':'擊退怪潮，收集經驗';
+      $('#game-phase')!.dataset.phase=phase;
+      $('#build-info')!.innerHTML=`<span>${WEAPONS[r.weapon].mark} ${isEvolved(r)?EVOLUTIONS[r.weapon].name:WEAPONS[r.weapon].name}${isEvolved(r)?' ✦':''}</span><span>${(['storm','orbit','nova'] as const).map(id=>`${UPGRADES.find(u=>u.id===id)!.icon}${r.upgrades[id]??0}`).join('　')} <small>構築 ›</small></span>`;
+      if(phase!==lastPhase){const banner=$('#phase-banner')!;banner.textContent=phase==='finalWave'?'最後一波':phase==='loot'?'區域肅清':phase==='victory'?'清場完成':'';banner.classList.toggle('visible',!!banner.textContent);lastPhase=phase;}
+      if(!evolved&&isEvolved(r)){evolved=true;chime([523,659,784,1046]);toast(`主武器進化：${EVOLUTIONS[r.weapon].name}`);}
     },
     upgrade:(r,choose)=>{
       chime([523,659,784]);const choices=upgradeChoices(r);
-      if(!choices.length){arena?.scene.resume();return;}
-      modal(`<span class="eyebrow">LEVEL ${r.level} · A LITTLE STRONGER</span><h2>讓微光更亮一些</h2><p class="modal-sub">時間已暫停，選擇一項本局能力。</p><div class="upgrade-list">${choices.map(u=>`<button class="upgrade ${u.color}" data-upgrade="${u.id}"><span class="upgrade-icon">${u.icon}</span><span><strong>${u.name}<small>Lv. ${(r.upgrades[u.id]??0)+1}</small></strong><p>${u.description}</p></span><b>＋</b></button>`).join('')}</div>`);
-      document.querySelectorAll<HTMLButtonElement>('[data-upgrade]').forEach(b=>b.addEventListener('click',()=>{choose(b.dataset.upgrade as Parameters<typeof choose>[0]);closeModal();}));
+      modal(`<span class="eyebrow">LEVEL ${r.level}</span><h2>選擇本局強化</h2><p class="evolution-hint">${isEvolved(r)?`✦ ${EVOLUTIONS[r.weapon].name}已進化`:`${EVOLUTIONS[r.weapon].name}：${evolutionProgress(r)}`}</p><div class="upgrade-list">${choices.map(u=>`<button class="upgrade ${u.color}" data-upgrade="${u.id}"><span class="upgrade-icon">${u.icon}</span><span><strong>${u.name}<small>Lv. ${(r.upgrades[u.id]??0)+1}</small></strong><p>${u.description}</p>${!isEvolved(r)&&u.id in EVOLUTIONS[r.weapon].requires?'<small class="upgrade-tag">主武器進化所需</small>':''}</span><b>＋</b></button>`).join('')}</div><p class="modal-sub upgrade-footnote">時間已暫停 · 本局能力在遠征結束後重置</p>`);
+      document.querySelectorAll<HTMLButtonElement>('[data-upgrade]').forEach(b=>b.addEventListener('click',()=>{closeModal();choose(b.dataset.upgrade as Parameters<typeof choose>[0]);}));
     },
-    complete:r=>void completeRoom(r), defeat:r=>void endExpedition('defeat',r),
-    puzzle:(mask,moves)=>{const r=arena?.scene.getRun();if(r)queuePuzzle(r);if($('#puzzle-count'))$('#puzzle-count')!.textContent=`${mask.toString(2).replaceAll('0','').length}/9 點亮 · ${moves} 步`;},
-    paused:pause,
-  },puzzle);
-  click('#pause',pause);click('#puzzle-hint',()=>arena?.scene.showHint());click('#puzzle-reset',()=>arena?.scene.resetPuzzle(puzzleInitial((checkpoint.seed+checkpoint.mission)%9)));click('#puzzle-skip',()=>{arena?.scene.pause();void completeRoom(arena?.scene.getRun()??checkpoint,true);});
+    complete:r=>void completeRoom(r), defeat:r=>void endExpedition('defeat',r),paused:pause,
+  });
+  click('#pause',pause);click('#build-info',()=>{
+    if(!arena||$('.modal-backdrop'))return;arena.scene.pause();
+    modal(`<span class="eyebrow">本局構築</span><h2>武器與技能</h2>${buildDetails(arena.scene.getRun())}<button id="close-build" class="primary">繼續戰鬥</button>`);
+    click('#close-build',()=>{closeModal();arena?.scene.resume();});
+  });
 }
-async function completeRoom(run:Run,skip=false){
+async function completeRoom(run:Run){
   if(busy||!save.run||save.run.id!==run.id||save.run.room!==run.room)return;busy=true;
-  const next=structuredClone(save);next.run=finishRoom(run,skip);
-  if(!(await persist(next))){busy=false;saveRetry(()=>void completeRoom(run,skip));return;}
+  const kills=run.kills-save.run.kills,next=structuredClone(save);next.run=finishRoom(run);
+  const reward=next.run.embers-run.embers,healed=Math.ceil(next.run.hp-run.hp);
+  if(!(await persist(next))){busy=false;saveRetry(()=>void completeRoom(run));return;}
   destroyArena();closeModal();chime([392,523,659]);busy=false;
-  if(next.run!.room>=8){await endExpedition('victory',next.run!);return;}
-  showMap();if(run.room===3&&!skip)toast('寶庫開啟，獲得 22 枚火種。');
+  if(next.run!.room>=ROOMS.length){await endExpedition('victory',next.run!);return;}
+  showMap();
+  modal(`<span class="eyebrow">第 ${run.room+1} / ${ROOMS.length} 房 · 已保存</span><h2>區域肅清</h2><div class="room-rewards"><span><b>${kills}</b>擊退敵人</span><span><b>+${reward}</b>清場火種</span><span><b>+${healed}</b>恢復生命</span></div><p class="modal-sub">掉落已全部收集。帶著這次成長，迎向下一波怪潮。</p><button id="next-room" class="primary">進入下一房 →</button><button id="room-camp" class="secondary full">回營地休息，保留進度</button>`);
+  click('#next-room',()=>void enterRoom());click('#room-camp',renderCamp);
 }
 function saveRetry(retry:()=>void){modal('<span class="eyebrow">進度尚未寫入</span><h2>先留住這段旅程</h2><p class="story-copy">遊戲已暫停。請檢查裝置空間後重試，或匯出目前進度。</p><button id="retry-save" class="primary">重新儲存</button><button id="backup-retry" class="secondary full">匯出備份</button>');click('#retry-save',retry);click('#backup-retry',()=>void exportSave());}
 async function endExpedition(outcome:'victory'|'defeat'|'retreat',run:Run){
@@ -193,7 +198,7 @@ function registerTools(){
   const empty=(value:unknown)=>{if(value&&typeof value==='object'&&!Array.isArray(value)&&!Object.keys(value).length)return;throw new Error('Expected an empty object.');};
   const tools:Tool[]=[
     {name:'get_game_status',title:'查看冒險狀態',description:'讀取目前畫面、主線進度與離線狀態。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute(input){empty(input);return {screen,cleared:save.profile.cleared,embers:save.profile.embers,room:save.run?.room??null,offlineReady:offline.ready};}},
-    {name:'pause_game',title:'暫停冒險',description:'將進行中的戰鬥或解謎暫停，顯示遊戲暫停選單。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){empty(input);if(!arena)throw new Error('No active room.');pause();return {paused:true,screen};}},
+    {name:'pause_game',title:'暫停冒險',description:'將進行中的戰鬥暫停，顯示遊戲暫停選單。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){empty(input);if(!arena)throw new Error('No active room.');pause();return {paused:true,screen};}},
   ];
   for(const tool of tools)try{void Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{/* Optional browser capability. */}
   window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});

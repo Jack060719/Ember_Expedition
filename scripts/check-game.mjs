@@ -1,7 +1,7 @@
 import { chromium, expect } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import { initialSave, createRun, toggleTile } from '../src/core.ts';
+import { initialSave, createRun, UPGRADES, ROOMS, experienceForLevel } from '../src/core.ts';
 
 await mkdir('artifacts',{recursive:true});
 const browser=await chromium.launch({headless:true});
@@ -17,7 +17,8 @@ try {
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   report.push('Mobile camp renders without horizontal overflow; all offline assets cached.');
   await page.locator('#journey').click();await page.locator('#begin').click();
-  await page.locator('[data-route="safe"]').click();
+  await expect(page.locator('[data-route],#enter-puzzle')).toHaveCount(0);
+  await page.locator('#enter-room').click();
   await expect(page.locator('#timer')).not.toHaveText('—');
   await expect(page.locator('canvas')).toBeVisible();
   const box=await page.locator('canvas').boundingBox();
@@ -34,7 +35,7 @@ try {
   await page.goto('http://localhost:4173/');
   await expect(page.locator('#resume')).toBeVisible();
   await expect(page.locator('#offline')).toContainText('已可離線遊玩');
-  await page.locator('#resume').click();await page.locator('[data-route="safe"]').click();
+  await page.locator('#resume').click();await page.locator('#enter-room').click();
   await expect(page.locator('#timer')).not.toHaveText('—');
   await page.locator('#pause').click();await page.locator('#checkpoint').click();
   report.push('Fresh page opens fully offline, retains the run and reloads sprite assets for combat.');
@@ -53,18 +54,41 @@ try {
     await page.locator('#confirm-import').click();
     await expect(page.locator('#resume')).toBeVisible();
   }
-  const fixture=initialSave();fixture.profile.cleared=5;fixture.profile.facilities.forge=2;fixture.profile.embers=250;
-  fixture.run=createRun(fixture.profile,4,'halo','normal',42);fixture.run.room=3;fixture.run.puzzle={mask:toggleTile(511,0),moves:0};
-  await importSave(fixture);await page.locator('#resume').click();await page.locator('#enter-puzzle').click();
-  await expect(page.locator('#puzzle-hint')).toBeVisible();await page.locator('#puzzle-hint').click();
-  await page.screenshot({path:'artifacts/puzzle-mobile.png'});
+  const learning=initialSave();learning.run=createRun(learning.profile,0,'staff','normal',4);learning.run.xp=experienceForLevel(1);
+  await importSave(learning);await page.locator('#resume').click();await page.locator('#enter-room').click();
+  await expect(page.locator('[data-upgrade]')).toHaveCount(3);
+  await expect(page.locator('.evolution-hint')).toContainText('星隕法杖');
+  await page.screenshot({path:'artifacts/upgrade-mobile.png'});
+  const chosen=await page.locator('[data-upgrade]').first().getAttribute('data-upgrade');
+  await page.locator('[data-upgrade]').first().click();await expect(page.locator('.modal-backdrop')).toHaveCount(0);
+  await page.locator('#build-info').click();await expect(page.locator('.evolution-card')).toContainText(chosen==='power'?'鍛火 1/3':'穿透 1/2');
+  await page.setViewportSize({width:320,height:568});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('#close-build').click();await page.setViewportSize({width:390,height:844});
   await page.locator('#pause').click();await page.locator('#checkpoint').click();
-  await page.reload();await page.locator('#resume').click();await page.locator('#enter-puzzle').click();
-  await page.locator('#puzzle-skip').click();await expect(page.locator('.route-content')).toContainText('ROOM 05');
-  report.push('Puzzle chapter, hints, checkpoint reload and optional skip work offline.');
+  report.push('Upgrade choices apply and update evolution progress; build panel remains usable at 320px width.');
 
-  await page.locator('#back-camp').click();
-  fixture.run=createRun(fixture.profile,5,'blade','normal',55);fixture.run.room=8;fixture.run.embers=90;
+  const fixture=initialSave();fixture.profile.cleared=5;fixture.profile.facilities.forge=2;fixture.profile.embers=250;
+  fixture.run=createRun(fixture.profile,4,'halo','normal',42);fixture.run.room=3;
+  for(const u of UPGRADES)fixture.run.upgrades[u.id]=u.max;
+  const legacy=structuredClone(fixture);legacy.version=1;legacy.run.route='risk';legacy.run.puzzle={mask:79,moves:8};delete legacy.run.growth;
+  await importSave(legacy);await page.locator('#resume').click();
+  await expect(page.locator('.route-content')).toContainText('ROOM 04 / 07');
+  await expect(page.locator('[data-route],#enter-puzzle,#puzzle-hint')).toHaveCount(0);
+  await page.locator('#enter-room').click();await page.locator('#build-info').click();
+  await expect(page.locator('.modal')).toContainText('雙曜光環');await expect(page.locator('.modal')).toContainText('霜雷共鳴');
+  await page.screenshot({path:'artifacts/build-mobile.png'});
+  await page.locator('#close-build').click();
+  await expect(page.locator('#game-phase')).toHaveAttribute('data-phase','finalWave',{timeout:70000});
+  await page.screenshot({path:'artifacts/final-wave-mobile.png'});
+  await expect(page.locator('#next-room')).toBeVisible({timeout:30000});
+  await expect(page.locator('.room-rewards')).toBeVisible();
+  await page.screenshot({path:'artifacts/room-clear-mobile.png'});
+  await page.locator('#next-room').click();await expect(page.locator('.game-header')).toContainText('5/7');
+  await page.locator('#pause').click();await page.locator('#checkpoint').click();await page.reload();
+  await expect(page.locator('#resume')).toBeVisible();
+  report.push('Legacy puzzle save becomes combat room 4/7 offline; build details, final wave, clear rewards and next-room checkpoint work.');
+
+  fixture.run=createRun(fixture.profile,5,'blade','normal',55);fixture.run.room=ROOMS.length;fixture.run.embers=90;
   await importSave(fixture);await page.locator('#resume').click();
   await expect(page.locator('.result-shell')).toContainText('你把火光帶回來了');
   await expect(page.locator('.result-reward')).toContainText('135');

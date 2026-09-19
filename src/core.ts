@@ -3,19 +3,18 @@ export type Difficulty = 'normal' | 'hard';
 export type UpgradeId = 'power' | 'haste' | 'stride' | 'vitality' | 'reach' | 'split' | 'pierce' | 'ember' | 'frost' | 'storm' | 'ward' | 'mend' | 'orbit' | 'nova' | 'magnet' | 'fortune' | 'focus' | 'secondwind';
 export type Facility = 'forge' | 'beacon' | 'archive';
 export interface Profile { embers: number; cleared: number; facilities: Record<Facility, number>; totalKills: number; expeditions: number; bestHard: number; }
-export interface PuzzleState { mask: number; moves: number; }
 export interface Run {
   id: string; seed: number; mission: number; difficulty: Difficulty; weapon: Weapon;
   room: number; hp: number; maxHp: number; embers: number; kills: number; elapsed: number;
   upgrades: Partial<Record<UpgradeId, number>>; level: number; xp: number;
-  puzzle: PuzzleState | null; route: 'safe' | 'risk'; secondWindUsed: boolean;
+  growth: { damage: number; experience: number; embers: number }; secondWindUsed: boolean;
 }
-export interface Save { version: 1; profile: Profile; run: Run | null; settings: { sound: boolean }; }
+export interface Save { version: 2; profile: Profile; run: Run | null; settings: { sound: boolean }; }
 export interface Upgrade { id: UpgradeId; name: string; description: string; icon: string; max: number; color: string; }
 export const WEAPONS: Record<Weapon, { name: string; mark: string; detail: string }> = {
-  staff: { name: '星火法杖', mark: '✦', detail: '自動追擊最近敵人，保持距離作戰。' },
-  blade: { name: '逐風短劍', mark: '⟐', detail: '近身扇形斬擊，穿過敵群的空隙。' },
-  halo: { name: '守燈光環', mark: '◎', detail: '環繞光刃持續攻擊，掌握貼身距離。' },
+  staff: { name: '星火法杖', mark: '✦', detail: '雙發穿透火矢；進化後命中爆破，掃開成群敵人。' },
+  blade: { name: '逐風短劍', mark: '⟐', detail: '大範圍揮斬；進化後斬出穿透刀波。' },
+  halo: { name: '守燈光環', mark: '◎', detail: '環形脈衝護身；進化後雙重光環擴大清場。' },
 };
 export const CHAPTERS = [
   { name: '迷霧林地', sub: '那些未熄滅的微光', color: '#8bc6a1', asset: 'forest', boss: '苔角守望者', intro: '北方的燈塔熄滅後，森林開始忘記回家的路。沿著舊石道前進，找回守望者保存的第一枚火種。', ending: '巨鹿低下頭，角間的微光落入燈籠。第一座燈塔重新亮起；霧中浮現一條通往神殿的路。' },
@@ -40,78 +39,78 @@ export const UPGRADES: Upgrade[] = [
   { id: 'pierce', name: '穿透', description: '投射物可多穿透一名敵人；近戰傷害 +15%', icon: '↗', max: 3, color: 'blue' },
   { id: 'ember', name: '灼痕', description: '擊中使敵人燃燒，每秒受到額外傷害', icon: '♨', max: 3, color: 'rose' },
   { id: 'frost', name: '霜息', description: '攻擊使敵人減速，持續 1.5 秒', icon: '❄', max: 3, color: 'blue' },
-  { id: 'storm', name: '連鎖閃電', description: '每 5 秒自動落雷，連鎖攻擊附近敵人', icon: 'ϟ', max: 3, color: 'gold' },
+  { id: 'storm', name: '連鎖閃電', description: '每 3 秒自動落雷，每級增加連鎖目標；Lv.2 搭配霜息 Lv.2 解鎖霜雷', icon: 'ϟ', max: 3, color: 'gold' },
   { id: 'ward', name: '護燈者', description: '受到的傷害減少 12%', icon: '◇', max: 3, color: 'green' },
   { id: 'mend', name: '回春', description: '每 8 秒自動恢復 2 生命', icon: '+', max: 3, color: 'green' },
-  { id: 'orbit', name: '伴星', description: '召喚繞行光刃，自動傷害碰觸的敵人', icon: '☄', max: 3, color: 'gold' },
-  { id: 'nova', name: '星爆', description: '每 7 秒向四周釋放一道震波', icon: '✺', max: 3, color: 'rose' },
+  { id: 'orbit', name: '伴星', description: '召喚繞行光刃；每級增加一片，持續切割周圍怪群', icon: '☄', max: 3, color: 'gold' },
+  { id: 'nova', name: '星爆', description: '每 4 秒向四周釋放震波；Lv.2 搭配灼痕 Lv.2 解鎖燃爆', icon: '✺', max: 3, color: 'rose' },
   { id: 'magnet', name: '引光', description: '經驗吸取範圍 +55%', icon: '⊹', max: 2, color: 'blue' },
   { id: 'fortune', name: '拾荒者', description: '房間火種收益 +20%', icon: '◈', max: 3, color: 'gold' },
   { id: 'focus', name: '洞察', description: '暴擊機率 +12%，暴擊造成雙倍傷害', icon: '⊙', max: 3, color: 'rose' },
   { id: 'secondwind', name: '不熄之火', description: '本次遠征可抵擋一次致命傷，恢復 40% 生命', icon: '♧', max: 1, color: 'green' },
 ];
 export const FACILITIES: Record<Facility, { name: string; icon: string; description: string; max: number }> = {
-  forge: { name: '守燈工坊', icon: '⚒', description: '依序解鎖短劍、光環，第三級強化起始攻擊。', max: 3 },
-  beacon: { name: '營地燈塔', icon: '♧', description: '每級使遠征起始生命 +10。', max: 5 },
-  archive: { name: '旅人書庫', icon: '▤', description: '依序增加起始引光、回春、護盾能力。', max: 3 },
+  forge: { name: '守燈工坊', icon: '⚒', description: '每級永久傷害 +8%；前兩級解鎖短劍、光環。', max: 20 },
+  beacon: { name: '營地燈塔', icon: '♧', description: '每級永久生命 +10，提高下一次遠征的起始生命與上限。', max: 20 },
+  archive: { name: '旅人書庫', icon: '▤', description: '每級經驗與火種收益 +3%；前三級依序帶入引光、回春、護燈者。', max: 20 },
 };
-export const ROOMS = ['林間遭遇', '守住火種', '迷霧岔路', '符文寶庫', '古道伏擊', '回聲深處', '最後防線', '燈塔守衛'];
-export const DURATIONS = [95, 105, 120, 0, 115, 100, 125, 150];
+export const ROOMS = ['林間遭遇', '守住火種', '迷霧湧動', '古道伏擊', '回聲深處', '最後防線', '燈塔守衛'];
+export const DURATIONS = [50, 55, 60, 60, 65, 70, 90];
+export const EVOLUTIONS: Record<Weapon, {name:string;description:string;requires:Partial<Record<UpgradeId,number>>}> = {
+  staff:{name:'星隕法杖',description:'火矢增加、穿透命中引發範圍爆破',requires:{power:3,pierce:2}},
+  blade:{name:'逐風裂空',description:'揮斬釋放穿透刀波，切開遠處怪群',requires:{power:3,reach:2}},
+  halo:{name:'雙曜光環',description:'擴大脈衝並釋放外環，光刃數量增加',requires:{orbit:2,haste:2}},
+};
+export const SYNERGIES = [
+  {id:'froststorm',name:'霜雷共鳴',description:'雷電對減速目標增傷，並凍緩整條連鎖',requires:{storm:2,frost:2}},
+  {id:'wildfire',name:'餘燼連爆',description:'燃燒中的敵人被擊倒時爆炸，引燃附近怪群',requires:{ember:2,nova:2}},
+] as const;
+export function meetsRequirements(run:Run,requires:Partial<Record<UpgradeId,number>>){return Object.entries(requires).every(([id,n])=>(run.upgrades[id as UpgradeId]??0)>=n!);}
+export function isEvolved(run:Run){return meetsRequirements(run,EVOLUTIONS[run.weapon].requires);}
+export function hasSynergy(run:Run,id:typeof SYNERGIES[number]['id']){return meetsRequirements(run,SYNERGIES.find(s=>s.id===id)!.requires);}
+export function experienceForLevel(level:number){return (12+level*6)*11;}
+export function permanentGrowth(profile:Profile){return {damage:profile.facilities.forge*.08,experience:profile.facilities.archive*.03,embers:profile.facilities.archive*.03};}
 const ENCOUNTERS = [
   {name:'林間遭遇',types:[0,1,2],pace:1},
   {name:'飛蛾微光',types:[1,1,0],pace:.9},
   {name:'衝撞之徑',types:[2,0,2],pace:1.15},
-  {name:'石像甬道',types:[3,0,5],pace:1.2},
-  {name:'幽影回聲',types:[4,1,4],pace:1.05},
-  {name:'守衛防線',types:[5,2,0],pace:1.25},
+  {name:'石像甬道',types:[0,0,1,3,0,5],pace:1.05},
+  {name:'幽影回聲',types:[1,0,1,0,4],pace:.95},
+  {name:'守衛防線',types:[0,1,0,2,0,5],pace:1},
 ];
 export function encounter(run:Run){
   const random=rng(run.seed+7919),order=[1,2,3,4,5].map(id=>({id,key:random()})).sort((a,b)=>a.key-b.key).map(x=>x.id);
-  const id=run.room===0?0:run.room===7?5:order[[1,2,4,5,6].indexOf(run.room)]??0;
+  const id=run.room===0?0:run.room===6?5:order[run.room-1]??0;
   return ENCOUNTERS[id];
-}
-export const PUZZLE_SOLUTIONS = [[0,4,8], [1,3,7], [0,2,6,8], [2,4,5], [0,1,7,8], [3,4,5], [1,2,4,6], [0,3,5,8], [0,2,4,6,8]];
-export function toggleTile(mask: number, tile: number): number {
-  const x = tile % 3, y = Math.floor(tile / 3);
-  for (const [dx,dy] of [[0,0], [1,0], [-1,0], [0,1], [0,-1]]) {
-    const nx=x+dx, ny=y+dy;
-    if(nx>=0 && nx<3 && ny>=0 && ny<3) mask ^= 1 << (ny*3+nx);
-  }
-  return mask;
-}
-export function puzzleInitial(index: number): number { return PUZZLE_SOLUTIONS[index%9].reduce(toggleTile, 511); }
-export function puzzleHint(mask: number): number {
-  for(let choice=1; choice<512; choice++) {
-    let state=mask;
-    for(let n=0;n<9;n++) if(choice & (1<<n)) state=toggleTile(state,n);
-    if(state===511) return Array.from({length:9},(_,i)=>i).find(i=>choice&(1<<i))!;
-  }
-  return -1;
 }
 export function rng(seed: number): () => number {
   let n=seed>>>0;
   return ()=>{ n+=0x6D2B79F5; let t=n; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; };
 }
 export function initialSave(): Save {
-  return { version: 1, profile: { embers: 0, cleared: 0, facilities: { forge: 0, beacon: 0, archive: 0 }, totalKills: 0, expeditions: 0, bestHard: 0 }, run: null, settings: { sound: true } };
+  return { version: 2, profile: { embers: 0, cleared: 0, facilities: { forge: 0, beacon: 0, archive: 0 }, totalKills: 0, expeditions: 0, bestHard: 0 }, run: null, settings: { sound: true } };
 }
 export function availableWeapons(profile: Profile): Weapon[] { return (['staff','blade','halo'] as Weapon[]).slice(0,Math.min(3,profile.facilities.forge+1)); }
-export function facilityCost(id: Facility, level: number): number { return (id==='forge'?70:id==='archive'?65:50) + level*65; }
+export function facilityCost(id: Facility, level: number): number { return (id==='forge'?70:id==='archive'?65:50) + level*65 + Math.max(0,level-2)**2*5; }
 export function createRun(profile: Profile, mission: number, weapon: Weapon, difficulty: Difficulty, seed: number): Run {
   if(mission<0 || mission>5 || mission>profile.cleared) throw new Error('先完成前一段主線。');
   if(!availableWeapons(profile).includes(weapon)) throw new Error('尚未解鎖這把武器。');
   if(difficulty==='hard' && mission>=profile.cleared) throw new Error('通關後才會開啟困難遠征。');
   const hp=100+profile.facilities.beacon*10;
   const upgrades: Run['upgrades']={};
-  if(profile.facilities.forge>=3) upgrades.power=1;
   if(profile.facilities.archive>=1) upgrades.magnet=1;
   if(profile.facilities.archive>=2) upgrades.mend=1;
   if(profile.facilities.archive>=3) upgrades.ward=1;
-  return { id: `${Date.now()}-${seed}`, seed, mission, difficulty, weapon, room: 0, hp, maxHp: hp, embers: 0, kills: 0, elapsed: 0, upgrades, level: 1, xp: 0, puzzle: null, route: 'safe', secondWindUsed: false };
+  return { id: `${Date.now()}-${seed}`, seed, mission, difficulty, weapon, room: 0, hp, maxHp: hp, embers: 0, kills: 0, elapsed: 0, upgrades, level: 1, xp: 0, growth:permanentGrowth(profile), secondWindUsed: false };
 }
 export function upgradeChoices(run: Run): Upgrade[] {
   const random=rng(run.seed+run.level*719+run.room*131);
-  return UPGRADES.filter(u=>(run.upgrades[u.id]??0)<u.max).map(u=>({u,sort:random()})).sort((a,b)=>a.sort-b.sort).slice(0,3).map(x=>x.u);
+  const pool=UPGRADES.filter(u=>(run.upgrades[u.id]??0)<u.max).map(u=>({u,sort:random()})).sort((a,b)=>a.sort-b.sort).map(x=>x.u);
+  const needed=Object.entries(EVOLUTIONS[run.weapon].requires).filter(([id,n])=>(run.upgrades[id as UpgradeId]??0)<n!);
+  const focused=pool.find(u=>needed.some(([id])=>id===u.id));
+  const skill=pool.find(u=>['storm','orbit','nova'].includes(u.id)&&!(run.upgrades[u.id]??0));
+  const selected=[focused,skill].filter((u):u is Upgrade=>!!u);
+  return [...new Set([...selected,...pool])].slice(0,3);
 }
 export function applyUpgrade(run: Run, id: UpgradeId): void {
   const u=UPGRADES.find(u=>u.id===id);
@@ -119,10 +118,11 @@ export function applyUpgrade(run: Run, id: UpgradeId): void {
   run.upgrades[id]=(run.upgrades[id]??0)+1;
   if(id==='vitality') {run.maxHp+=20; run.hp=Math.min(run.maxHp,run.hp+20);}
 }
-export function finishRoom(run: Run, skippedPuzzle=false): Run {
+export function finishRoom(run: Run): Run {
+  if(run.room>=ROOMS.length) return structuredClone(run);
   const next=structuredClone(run);
-  const reward=run.room===3?(skippedPuzzle?0:22):Math.round((run.route==='risk'?20:14)*(1+(run.upgrades.fortune??0)*.2));
-  next.embers+=reward; next.room++; next.puzzle=null;
+  const reward=Math.round((24+run.room*2)*(1+(run.upgrades.fortune??0)*.2+run.growth.embers));
+  next.embers+=reward; next.room++; next.hp=Math.min(next.maxHp,next.hp+Math.ceil(next.maxHp*.08));
   return next;
 }
 export function settle(save: Save, outcome: 'victory' | 'defeat' | 'retreat'): {save: Save; earned: number} {
@@ -146,20 +146,27 @@ export function buyFacility(save: Save, id: Facility): Save {
 export function validateSave(value: unknown): Save {
   const fail=()=>{throw new Error('存檔格式或版本不符，原有進度尚未變更。');};
   if(!value || typeof value!=='object') return fail();
-  const s=value as Save;
+  const legacy=(value as {version?:number}).version===1;
+  const s=structuredClone(value) as Save;
   const integer=(v:unknown,max=1e9)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0&&v<=max;
   const finite=(v:unknown,max=1e9)=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=max;
-  if(s.version!==1 || !s.profile || !s.settings || typeof s.settings.sound!=='boolean') return fail();
+  if((!legacy&&s.version!==2) || !s.profile || !s.settings || typeof s.settings.sound!=='boolean') return fail();
   const p=s.profile;
   if(!integer(p.embers)||!integer(p.cleared,6)||!integer(p.totalKills)||!integer(p.expeditions)||!integer(p.bestHard)||!p.facilities) return fail();
-  for(const id of Object.keys(FACILITIES) as Facility[]) if(!integer(p.facilities[id],FACILITIES[id].max)) return fail();
+  for(const id of Object.keys(FACILITIES) as Facility[]) if(!integer(p.facilities[id],legacy?(id==='beacon'?5:3):FACILITIES[id].max)) return fail();
   if(s.run!==null) {
     const r=s.run;
-    if(!r || typeof r.id!=='string'||r.id.length>100||!integer(r.seed,4294967295)||!integer(r.mission,5)||r.mission>p.cleared||!integer(r.room,8)||!availableWeapons(p).includes(r.weapon)||!['normal','hard'].includes(r.difficulty)||!['safe','risk'].includes(r.route)) return fail();
+    if(!r || typeof r.id!=='string'||r.id.length>100||!integer(r.seed,4294967295)||!integer(r.mission,5)||r.mission>p.cleared||!integer(r.room,legacy?8:ROOMS.length)||!availableWeapons(p).includes(r.weapon)||!['normal','hard'].includes(r.difficulty)) return fail();
     if(r.difficulty==='hard'&&r.mission>=p.cleared) return fail();
     if(!finite(r.hp,10000)||!finite(r.maxHp,10000)||r.maxHp<1||r.hp>r.maxHp||!integer(r.embers)||!integer(r.kills)||!finite(r.elapsed)||!integer(r.level,1000)||r.level<1||!finite(r.xp)||typeof r.secondWindUsed!=='boolean'||!r.upgrades||typeof r.upgrades!=='object') return fail();
     for(const [id,n] of Object.entries(r.upgrades)) {const u=UPGRADES.find(u=>u.id===id); if(!u||!integer(n,u.max)) return fail();}
-    if(r.puzzle!==null&&(!r.puzzle||!integer(r.puzzle.mask,511)||!integer(r.puzzle.moves,100000))) return fail();
+    if(legacy){
+      const old=r as Run&{route?:string;puzzle?:{mask:number;moves:number}|null};
+      if(!['safe','risk'].includes(old.route??'')||(old.puzzle!==null&&(!old.puzzle||!integer(old.puzzle.mask,511)||!integer(old.puzzle.moves,100000)))) return fail();
+      r.room=r.room>3?r.room-1:r.room; r.growth=permanentGrowth(p);
+      delete old.route; delete old.puzzle;
+    }else if(!r.growth||!finite(r.growth.damage,2)||!finite(r.growth.experience,1)||!finite(r.growth.embers,1)) return fail();
   }
-  return structuredClone(s);
+  s.version=2;
+  return s;
 }
