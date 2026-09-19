@@ -70,7 +70,7 @@ TASK-001 實作與驗收紀錄已提交於 `7e3f8d1`；main 原有任務卡與�
 
 使用者要求先提供 Android 分支的測試連結，不必先合併 main。採獨立私人 Sites 站台；原專案 `.openai/hosting.json` 身分與正式站第 6 版維持不變。測試站在忽略的 `artifacts/android-preview/` 保存自己的 `.openai/hosting.json` 與可追溯的靜態發布來源，僅部署本分支已驗證的 `dist/`。不同網址的存檔分開，玩家可透過 JSON 備份轉入；不將測試存檔或原始美術放入發布包。
 
-- 測試網址：[餘燼遠征 Android 測試](https://ember-expedition-android-test.asterina-co.chatgpt.site)。新站維持預設僅擁有者登入可見；未公開或邀請外部訪客。請用建立站台的 ChatGPT 帳號登入。
+- 測試網址：[餘燼遠征 Android 測試](https://ember-expedition-android-test.asterina-co.chatgpt.site)。建立時僅擁有者可見；2026-09-19 已依使用者明確指示新增一位外部測試者為 viewer，回讀確認權限 revision 2，保留擁有者及 custom 存取模式。請用獲授權電子郵件所對應的 ChatGPT 帳號登入。測試站仍非公開，正式站權限未更動；後續部署須沿用含外部檢視者的權限，不能當成僅擁有者站台。
 - 遊戲來源為本分支 `a1e009eb0342e8b4ffbd478c5384fb85c5668112`。重新建置得到相同離線版本 `3a89987cf628`；測試站的靜態來源另提交並推送至它自己的 Sites 儲存庫，提交 `a1747d981f29766c0c49cf765085691dd2f62a91`。這是測試站儲存庫的 main，沒有合併遊戲儲存庫的 main。
 - 測試站 ID：`appgprj_6aae9c2012588191a2ab3a9404fa0bcb`。第 1 版 ID：`appgprj_6aae9c2012588191a2ab3a9404fa0bcb~appgver_696539b466648191beef1ef42445c994`。部署 `appgdep_6aae9c83a6288191b11b57956d393dad` 回報 `succeeded`。後續更新此測試站沿用該 ID，不重建站台，也不覆蓋根目錄的正式站設定。
 - 發布包只有新站 hosting 設定與完整 `dist/`，共 16 檔；打包後逐一比對發布包、靜態來源與本分支建置，內容完全相同。測試站部署後再查原站仍為第 6 版，原擁有者與外部檢視者的存取設定保留。

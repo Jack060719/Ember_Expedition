@@ -8,7 +8,7 @@
 
 ## Android 安裝
 
-本分支已部署[Android 私人測試站](https://ember-expedition-android-test.asterina-co.chatgpt.site)，可直接用它執行下列安裝步驟。請以建立站台的 ChatGPT 帳號登入；測試站存檔與正式站分開，尚未合併 main 或更新正式站。
+本分支已部署[Android 私人測試站](https://ember-expedition-android-test.asterina-co.chatgpt.site)，可直接用它執行下列安裝步驟。請以已獲授權的電子郵件所對應的 ChatGPT 帳號登入；測試站存檔與正式站分開，尚未合併 main 或更新正式站。
 
 1. 用 Android 的 Chrome 一般分頁開啟[遊戲網址](https://ember-expedition-nowifi.asterina-co.chatgpt.site)，依私人網站提示登入。若從通訊軟體開啟，先改用 Chrome。
 2. 點右上角「⋮」→「加入主畫面」或「安裝應用程式」，依 Chrome 顯示的選項完成。
