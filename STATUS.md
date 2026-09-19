@@ -7,7 +7,7 @@
 - 一般關卡的難度調整已實作、完成本機驗證，且在 2026-09-19 獲使用者試玩認可。
 - TASK-001 第二輪已依試玩回饋增加首領生命 25%、每波增援 8 → 12 隻，已完成本機回歸，並於 2026-09-19 獲使用者試玩認可；任務已完成、結案。
 - 新角色、更多武器／升級、自由搭配與無盡模式亦為下一版方向，詳見 [ROADMAP.md](ROADMAP.md)。
-- 本次僅處理 TASK-001 及其合併發布，未實作其他下版功能；使用者已同意先合併發布，再補其他組合與 iPhone 實機驗收。發布與驗證結果另記於下方。
+- TASK-001 已合併 main 並發布 Sites 第 3 版，原網址與存取權限保留；未實作其他下版功能。使用者同意發布後再補其他組合與 iPhone 實機驗收，實際發布與驗證結果見下方。
 
 ## 已實作的基準
 
@@ -53,7 +53,7 @@
 
 TASK-001 實作與驗收紀錄已提交於 `7e3f8d1`；main 原有任務卡與交接修改另保留於 `125d2c0`。整合於原專案 main 工作樹進行；以下開工快照與首輪紀錄中的未提交狀態不代表本次整合狀態。
 
-本工作樹為 `C:\Users\User\orca\workspaces\nowifi\task-001-boss`，分支 `Jack060719/task-001-boss`，基準 `4af3fb85c40669e2a84c42bf266abbfbb784d83b`（Balance combat progression and add project documentation）。開工時工作樹乾淨；本次 TASK-001 修改尚未提交。
+原任務工作樹為 `C:\Users\User\orca\workspaces\nowifi\task-001-boss`，分支 `Jack060719/task-001-boss`，基準 `4af3fb85c40669e2a84c42bf266abbfbb784d83b`（Balance combat progression and add project documentation）。開工時工作樹乾淨；本次修改已提交並合併於 `9733929`，發布後的交接文件另作提交。
 
 - 原文件在 `main / f0b2830` 記錄的七房平衡與協作文件，已納入目前的 `4af3fb8`；不能再將舊未提交清單當成即時狀態。
 - 本次修改 `src/arena.ts`、`scripts/check-arena.mjs`、`scripts/check-game.mjs`、`package.json`、四份專案文件，新增 `scripts/check-boss.mjs`。以即時 `git status --short` 為準。
@@ -65,7 +65,20 @@ TASK-001 實作與驗收紀錄已提交於 `7e3f8d1`；main 原有任務卡與�
 
 ## 進行中任務與最近交接
 
-TASK-001／Codex／`Jack060719/task-001-boss` → main／基準 `4af3fb8`：**功能完成（使用者已驗收），main 整合驗證通過，準備發布。** 不自動開始其他任務。
+TASK-001／Codex／`Jack060719/task-001-boss` → main／基準 `4af3fb8`：**完成、已合併 main、已發布；保留下述實機驗證限制。** 不自動開始其他任務。
+
+### 發布完成：2026-09-19
+
+- main 合併提交：`9733929394cf0d82a1650c71a174d1c6ec35a212`，已推送 GitHub `origin/main` 及 Sites 的來源 main。後續交接文件提交不改變此發布的遊戲產物。
+- Sites 第 3 版：`appgprj_6aabe9ab4ab881919a8d919463a6289d~appgver_27bffeb8102c8191a5ad69a811276424`；部署 `appgdep_6aae6bac9584819188a8c531fb8c2ec5` 回報 `succeeded`。
+- 網址：[餘燼遠征](https://ember-expedition-nowifi.asterina-co.chatgpt.site)。沿用原專案與自訂存取範圍，擁有者及原外部檢視者均未改動；沒有公開化。
+- 線上離線內容版本 `7ca2565c2910`。使用 API 授權逐一核對 15 個檔案與 main 建置一致；首頁只排除平台額外注入的 Cloudflare challenge script，遊戲 JS／CSS／圖片／manifest／Service Worker 均逐位元比對。
+- 實際執行 `node artifacts/verify-published.mjs`：線上 Chromium 手機尺寸、合成 v2 存檔匯入、幽龍戰載入、雙血條暫停與檢查點重開通過，無 page error；報告為 `artifacts/release-published-report.json`。測試使用獨立瀏覽器環境，未操作使用者個人存檔。
+- **未通過／未驗證部分**：嘗試線上舊版更新驗證時，無互動登入的自動瀏覽器註冊 Service Worker 收到 HTTP 401；直接帶 API 授權下載同一檔案則為 200。故線上新舊版切換及離線冷啟動未驗證，不能把本機離線測試當成線上登入流程通過。線上遊戲檢查明確停用 Service Worker；iPhone 主畫面、觸控、長時間效能與其他配裝的真人手感仍待使用者補驗。
+
+手機更新：保持連網，從原主畫面圖示重開；看到「有新版本」後，先完成或撤退結束目前遠征，再點左上角離線狀態、選「更新至已下載的新版本」。等待「已可離線遊玩」後再測離線重開，沿用原網址與本機存檔。
+
+發布包只含原 hosting 設定與 `dist/`（16 個檔案），不含測試存檔、美術原圖或憑證。首領前後報告、一般房基準及壓力量測已另複製至 main 的 `artifacts/task001-evidence/`；這些證據不提交或發布。
 
 ### main 整合驗證：2026-09-19
 
@@ -87,7 +100,7 @@ main 建置的離線版本為 `7ca2565c2910`，14 個快取資源。相較工作
 
 已確認目前 `src/arena.ts` 雜湊與首領量測報告一致、一般房報告與原始基準完全一致、`dist/sw.js` 為 `9882270b784c`，發布目錄未含測試存檔或美術原圖；`git diff --check` 通過。另重新執行 `node artifacts/check-boss-render.mjs`：本機 Chromium／WebGL、160 怪、481 次回呼，幀間隔 P95 16.7 ms；這是本機補測，不代表 iPhone 效能。
 
-main 仍為 `4af3fb8`，但其工作樹有未提交的 `ROADMAP.md` 任務卡及 `STATUS.md` 交接更新；合併時須保留並整合，不能覆蓋。Sites 原站台 `appgprj_6aabe9ab4ab881919a8d919463a6289d` 為自訂存取範圍（擁有者及一位外部檢視者），現行網址為 `https://ember-expedition-nowifi.asterina-co.chatgpt.site`；發布須沿用原身分及存取權限，不能視為僅擁有者可見的站台。
+合併前 main 為 `4af3fb8`，工作樹有未提交的 `ROADMAP.md` 任務卡及 `STATUS.md` 交接更新；已先保留於 `125d2c0`，再整合 TASK-001。Sites 原站台 `appgprj_6aabe9ab4ab881919a8d919463a6289d` 為自訂存取範圍（擁有者及一位外部檢視者）；發布沿用原身分及存取權限，未使用僅擁有者可見的發布流程。
 
 ### 第二輪：血量與增援調整（目前版本）
 
@@ -159,5 +172,6 @@ main 仍為 `4af3fb8`，但其工作樹有未提交的 `ROADMAP.md` 任務卡及
 | 2026-09-19 | 已實作、待試玩驗收 | TASK-001：三首領強化、216 組前後量測與上述回歸；一般房逐房數據不變。 |
 | 2026-09-19 | 第二輪已調整、待再次試玩 | TASK-001：生命 +25%、每波援軍 8 → 12；216 組首領量測與完整回歸已跑，普通光環打幽龍較久，待使用者確認。 |
 | 2026-09-19 | 完成、使用者已驗收 | TASK-001：提供普通光環對幽龍存檔後，使用者認可 BOSS 體驗；保留第二輪設定，更新文件後停止，未提交／合併／發布。 |
+| 2026-09-19 | 已合併、已發布 | 使用者同意先發布後補驗；保留 main 任務卡，合併 `9733929`，發布 Sites 第 3 版。線上檔案與首領／存檔流程通過；線上離線更新受自動登入限制，iPhone 實測待補。 |
 
-TASK-001 已結案。下次接手先核對未提交修改與當次明確指派，沿用上述基準及驗收界線；不自動開始其他任務或合併 main。
+TASK-001 已結案並完成本次授權的合併發布。下次接手先核對即時 Git 狀態與當次明確指派，沿用上述基準及驗收界線；不自動開始其他任務。
