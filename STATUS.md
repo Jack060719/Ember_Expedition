@@ -51,11 +51,10 @@
 
 ## Git 基準與搬移
 
-整理時分支為 `main`，HEAD 為 `f0b2830`（Fix offline recovery and responsive touch movement）。**目前已實作的新內容仍包含未提交修改，HEAD 並不代表本頁描述的最新遊戲。**
+2026-09-19 改寫任務卡前核對：分支為 `main`，HEAD 為 `4af3fb8`（Balance combat progression and add project documentation），工作樹乾淨。**目前遊戲平衡、測試與交接文件已包含在此提交；先前以 `f0b2830` 為基準的未提交提醒已過期。**
 
-- 原有已修改檔包含 `src/core.ts`、`src/arena.ts`、`src/main.ts`、`src/style.css`、`tests/core.test.ts`、`scripts/check-arena.mjs`、`scripts/check-game.mjs`、`package.json` 與 `README.md`。
-- 新檔包含 `AGENTS.md`、`PROJECT.md`、`STATUS.md`、`ROADMAP.md` 與 `scripts/check-balance.mjs`。以實際 `git status --short` 為準；未追蹤不代表可刪除。
-- 若透過 Git clone／新工作樹搬到 Orca，先將需要的遊戲修改和交接文件納入可共享的基準提交；直接從上述舊 HEAD 開分支，會缺少目前功能。若整份資料夾搬移，需一併保留這些未提交及新檔，並在目的地核對。
+- 本次另修改 `ROADMAP.md` 的任務卡格式、執行順序與依賴及本檔交接紀錄，尚未提交。後續以實際 `git status --short` 為準；未追蹤不代表可刪除。
+- 若透過 Git clone／新工作樹搬到 Orca，使用包含最新版遊戲與任務卡文件的共享基準提交；若整份資料夾搬移，需一併保留尚未提交的修改及新檔，並在目的地核對。
 - 攜帶原始碼、測試、鎖檔、文件、`public/`、`assets-source/` 與 `.openai/hosting.json`；`node_modules/`、`dist/` 可重建，`artifacts/` 只作選擇性的內部證據備份，不是必要輸入。
 - 新環境依 README 安裝 Node.js 22.18+、鎖定依賴及 Playwright Chromium，重新建置並驗證。5173／4173／4180 的伺服器與測試要指向同一份待測程式。
 - 遊戲存檔屬於瀏覽器的來源與儲存環境；搬專案資料夾不會搬走玩家進度。要移轉存檔時透過遊戲匯出／匯入，不把私人存檔提交或公開。
@@ -70,5 +69,7 @@
 | 2026-09-18 | 已實作、已驗證 | 七房平衡調整與下一版內容紀錄；尚未提交／發布。 |
 | 2026-09-19 | 已記錄需求 | 一般難度獲認可；BOSS 強化加入下一版，尚未實作。 |
 | 2026-09-19 | 文件交接 | 整理目的、決策、現況、待辦與多 agent 規則；未變更遊戲。 |
+| 2026-09-19 | 任務卡整理 | ROADMAP 改為 TASK-001～TASK-006，包含 TODO、建議優先級、目標、驗收條件與不包含範圍；未開始功能實作。已確認先前遊戲與交接文件提交於 `4af3fb8`。 |
+| 2026-09-19 | 依賴補充 | ROADMAP 補上前置任務與並行條件：建議先做 BOSS，再擴充內容，接著整合構築平衡，最後驗收無盡模式；構築整合須包含強化後首領。所有功能仍為 TODO。 |
 
-下次接手先確認當次任務範圍與共享基準，再按 AGENTS 的交接格式記錄負責者、分支／工作樹、修改檔案、驗證與下一步。BOSS 強化是最新明確的試玩問題，可作為下一項設計工作的起點；下一版其餘功能的排程尚未指定。
+下次接手先確認當次 TASK 編號、前置任務、範圍與共享基準，依 ROADMAP 的階段與並行條件安排，再按 AGENTS 的交接格式記錄負責者、分支／工作樹、修改檔案、驗證與下一步。TASK-001 的 BOSS 強化建議優先，其餘任務建議為 Medium；尚未指定實際日期或負責者。
