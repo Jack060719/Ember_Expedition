@@ -7,10 +7,22 @@ import assert from 'node:assert/strict';
 const root=path.resolve('dist'), origin='http://127.0.0.1:4180';
 const useWebKit=process.argv.includes('--webkit');
 let blocked=false, signIn=false, redirectIndex=false, nextVersion=false, unreachable=false, forestRequests=0;
+let authGeneration=0, loginVisits=0;
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg','.webmanifest':'application/manifest+json'};
 const server=createServer(async(req,res)=>{
   if(unreachable){req.socket.destroy();return;}
   const url=new URL(req.url,origin), name=url.pathname==='/'?'index.html':url.pathname.slice(1);
+  if(url.pathname==='/signin-with-chatgpt'){
+    loginVisits++;
+    assert.equal(url.searchParams.get('return_to'),'/');
+    res.writeHead(200,{'Content-Type':'text/html'}).end('<a id="mock-login" href="/auth-return">Complete test login</a>');return;
+  }
+  if(url.pathname==='/auth-return'){
+    res.writeHead(302,{'Set-Cookie':`session=${authGeneration}; Path=/; HttpOnly; SameSite=Lax`,Location:'/'}).end();return;
+  }
+  if(authGeneration&&!req.headers.cookie?.includes(`session=${authGeneration}`)){
+    res.writeHead(401,{'Content-Type':'text/html'}).end('<html>Sign in to continue</html>');return;
+  }
   if(url.pathname==='/index.html'&&redirectIndex){res.writeHead(301,{Location:'/'}).end();return;}
   if(url.pathname==='/assets/forest.jpg'){
     forestRequests++;
@@ -51,6 +63,7 @@ try{
   await expect(deniedPage.locator('#retry-offline')).toBeEnabled({timeout:25000});
   await expect(deniedPage.locator('#offline')).not.toContainText('已可離線遊玩');
   await expect(deniedPage.locator('#offline-panel')).toContainText('登入');
+  await expect(deniedPage.locator('#sign-in')).toBeVisible();
   blocked=false;await deniedPage.locator('#retry-offline').click();
   try{await expect(deniedPage.locator('.offline-state')).toContainText('已可離線遊玩',{timeout:20000});}
   catch(error){
@@ -80,7 +93,7 @@ try{
   await updatePage.locator('#offline').click();await expect(updatePage.locator('#offline-version')).toContainText('update-');
   assert.ok((await updatePage.evaluate(()=>caches.keys())).every(name=>name.startsWith('ember-update-')));
   await disconnect(updating);await updatePage.reload();await expect(updatePage.locator('#journey')).toBeVisible();
-  await updating.close();console.log('PASS manual update check, installed version display, activation and offline play');
+  await updating.close();unreachable=false;console.log('PASS manual update check, installed version display, activation and offline play');
 
   nextVersion=false;
   const resuming=await browser.newContext(), resumePage=await resuming.newPage();await resumePage.goto(origin);
@@ -92,4 +105,39 @@ try{
   await resumePage.locator('#offline').click();await expect(resumePage.locator('#update')).toBeDisabled();
   await resumePage.locator('#close').click();await expect(resumePage.locator('#resume')).toBeVisible();
   await resuming.close();console.log('PASS returning to the app detects an update without activating during an expedition');
+
+  nextVersion=false;authGeneration=1;
+  const recovering=await browser.newContext({viewport:{width:390,height:844}});
+  await recovering.addCookies([{name:'session',value:'1',url:origin}]);
+  const recoveryPage=await recovering.newPage();await recoveryPage.goto(origin);
+  await expect(recoveryPage.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});
+  await recoveryPage.locator('#journey').click();await recoveryPage.locator('#begin').click();await recoveryPage.locator('#back-camp').click();
+  const readSave=()=>recoveryPage.evaluate(()=>new Promise((resolve,reject)=>{
+    const request=indexedDB.open('ember-expedition',1);request.onerror=()=>reject(request.error);
+    request.onsuccess=()=>{const db=request.result,get=db.transaction('save','readonly').objectStore('save').get('current');get.onsuccess=()=>{resolve(get.result);db.close();};get.onerror=()=>reject(get.error);};
+  }));
+  const saved=await readSave();
+  authGeneration=2;nextVersion=true;await recoveryPage.reload();
+  await expect(recoveryPage.locator('#offline')).toContainText('已可離線遊玩 · 請重新登入',{timeout:15000});
+  await recoveryPage.locator('#offline').click();await expect(recoveryPage.locator('#sign-in')).toBeVisible();
+  await recoveryPage.screenshot({path:'artifacts/login-recovery-mobile.png',fullPage:true});
+  await recoveryPage.evaluate(()=>{window.originalPut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=()=>{throw new Error('Test save failure');};});
+  await recoveryPage.locator('#sign-in').click();await expect(recoveryPage.locator('.toast')).toContainText('Test save failure');
+  assert.equal(loginVisits,0,'Failed saving must not navigate away to login.');
+  await recoveryPage.evaluate(()=>{IDBObjectStore.prototype.put=window.originalPut;});
+  await recoveryPage.locator('#sign-in').click();await expect(recoveryPage.locator('#mock-login')).toBeVisible();
+  assert.equal(loginVisits,1);await recoveryPage.locator('#mock-login').click();
+  await expect(recoveryPage.locator('#resume')).toBeVisible();assert.deepEqual(await readSave(),saved);
+  await expect(recoveryPage.locator('#offline')).toContainText('有新版本',{timeout:20000});
+  await recoveryPage.locator('#offline').click();await expect(recoveryPage.locator('#sign-in')).toHaveCount(0);
+  await expect(recoveryPage.locator('#update')).toBeDisabled();
+  await expect(recoveryPage.locator('#offline-version')).not.toContainText('update-');
+  await recoveryPage.locator('#close').click();await recoveryPage.locator('#resume').click();
+  await recoveryPage.locator('#retreat').click();await recoveryPage.locator('#confirm-retreat').click();await recoveryPage.locator('#home').click();
+  const settled=await readSave();await recoveryPage.locator('#offline').click();await expect(recoveryPage.locator('#update')).toBeEnabled();
+  await recoveryPage.locator('#update').click();await expect(recoveryPage.locator('#offline')).toContainText('已可離線遊玩');
+  await recoveryPage.locator('#offline').click();await expect(recoveryPage.locator('#offline-version')).toContainText('update-');
+  await disconnect(recovering);await recoveryPage.reload();await expect(recoveryPage.locator('#journey')).toBeVisible();
+  assert.deepEqual(await readSave(),settled);await recovering.close();unreachable=false;authGeneration=0;
+  console.log('PASS expired-login startup retains offline readiness; save failure blocks navigation; same-context test login restores updates and preserves saves; active expedition blocks activation; offline reopen succeeds');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

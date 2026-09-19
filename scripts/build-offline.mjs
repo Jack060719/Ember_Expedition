@@ -12,7 +12,7 @@ const script=`const CACHE='ember-${version}';
 const FILES=${JSON.stringify(urls)};
 let download;
 async function notify(message){for(const client of await self.clients.matchAll({includeUncontrolled:true}))client.postMessage(message);}
-function failure(message,detail){return Object.assign(new Error(message),{detail});}
+function failure(message,detail,authRequired=false){return Object.assign(new Error(message),{detail,authRequired});}
 function prepare(installing=false){
   if(download)return download;
   download=(async()=>{
@@ -23,11 +23,11 @@ function prepare(installing=false){
         try{
           const response=await fetch(new Request(url,{cache:'reload',credentials:'same-origin',signal:controller.signal}));
           const type=response.headers.get('content-type')||'';
-          if(response.status===401||response.status===403||response.redirected)throw failure('登入驗證未通過，請連網重新開啟遊戲',url+' · HTTP '+response.status);
+          if(response.status===401||response.status===403||response.redirected)throw failure('登入驗證未通過，請連網重新開啟遊戲',url+' · HTTP '+response.status,true);
           if(!response.ok)throw failure('部分內容下載失敗，請重試',url+' · HTTP '+response.status);
           if(url==='/'){
-            if(!type.includes('text/html')||!(await response.clone().text()).includes('<meta name="application-name" content="Ember Expedition"'))throw failure('取得登入頁面，請重新登入遊戲',url);
-          }else if(type.includes('text/html'))throw failure('取得登入頁面，請重新登入遊戲',url);
+            if(!type.includes('text/html')||!(await response.clone().text()).includes('<meta name="application-name" content="Ember Expedition"'))throw failure('取得登入頁面，請重新登入遊戲',url,true);
+          }else if(type.includes('text/html'))throw failure('取得登入頁面，請重新登入遊戲',url,true);
           await cache.put(url,response);
         }catch(error){
           if(error.detail)throw error;
@@ -36,7 +36,7 @@ function prepare(installing=false){
       }
       await notify({type:'OFFLINE_PROGRESS',done:++done,total:FILES.length});
     }
-  })().catch(async error=>{if(installing)await caches.delete(CACHE);await notify({type:'OFFLINE_ERROR',message:error.message,detail:error.detail});throw error;}).finally(()=>{download=null;});
+  })().catch(async error=>{if(installing)await caches.delete(CACHE);await notify({type:'OFFLINE_ERROR',message:error.message,detail:error.detail,authRequired:error.authRequired});throw error;}).finally(()=>{download=null;});
   return download;
 }
 async function check(client,repaired=false){

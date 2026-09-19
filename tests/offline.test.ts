@@ -8,12 +8,13 @@ const source=ts.transpileModule(readFileSync(new URL('../src/offline.ts',import.
 function fixture(){
   const worker=Object.assign(new EventTarget(),{state:'installing',postMessage(){}});
   const registration=Object.assign(new EventTarget(),{installing:worker as typeof worker|null,active:null as typeof worker|null,waiting:null as typeof worker|null,update:async()=>{}});
-  const serviceWorker=Object.assign(new EventTarget(),{register:async()=>registration,ready:new Promise(()=>{})});
+  const serviceWorker=Object.assign(new EventTarget(),{register:async()=>registration,getRegistration:async()=>registration,ready:new Promise(()=>{})});
+  let response={status:200,redirected:false,headers:{get:()=> 'text/javascript'}};
   const timers=new Map<number,()=>void>();let id=0,state:any;
-  const context=vm.createContext({exports:{},navigator:{serviceWorker},setTimeout(callback:()=>void){timers.set(++id,callback);return id;},clearTimeout(key:number){timers.delete(key);}});
+  const context=vm.createContext({exports:{},navigator:{serviceWorker},AbortSignal,fetch:async()=>response,setTimeout(callback:()=>void){timers.set(++id,callback);return id;},clearTimeout(key:number){timers.delete(key);}});
   vm.runInContext(source,context);
   context.exports.watchOffline((next:any)=>{state=next;});
-  return {api:context.exports,worker,registration,timers,message(data:object){serviceWorker.dispatchEvent(Object.assign(new Event('message'),{data}));},get state(){return state;}};
+  return {api:context.exports,worker,registration,serviceWorker,context,timers,setResponse(next:typeof response){response=next;},message(data:object){serviceWorker.dispatchEvent(Object.assign(new Event('message'),{data}));},get state(){return state;}};
 }
 test('an already installing worker reports failure instead of waiting for ready forever',{timeout:1000},async()=>{
   const f=fixture();await f.api.prepareOffline();
@@ -55,4 +56,47 @@ test('update check exposes a waiting version without activating it or claiming t
   await f.api.checkForUpdates();
   assert.equal(f.state.update,true);assert.equal(f.state.working,false);assert.match(f.state.message,/有新版本/);
   assert.equal(f.state.version,'installed-version');assert.equal(activations,0);
+});
+
+test('expired login during startup preserves the installed worker and exposes sign-in even after its cache reply',async()=>{
+  const f=fixture();f.registration.installing=null;f.registration.active=f.worker;
+  let checks=0;f.worker.postMessage=()=>{checks++;};
+  f.serviceWorker.register=async()=>{throw new Error('Worker registration failed');};
+  f.setResponse({status:401,redirected:false,headers:{get:()=> 'text/html'}});
+  await f.api.prepareOffline();
+  assert.equal(checks,1);assert.equal(f.state.authRequired,true);
+  f.message({type:'OFFLINE_READY',version:'old-cache'});
+  assert.equal(f.state.ready,true);assert.equal(f.state.version,'old-cache');
+  assert.equal(f.state.authRequired,true);assert.match(f.state.message,/重新登入/);
+});
+
+test('login HTML during update exposes recovery and a successful retry clears the login warning',async()=>{
+  const f=fixture();f.registration.installing=null;f.registration.active=f.worker;
+  await f.api.prepareOffline();f.message({type:'OFFLINE_READY',version:'old-cache'});
+  f.registration.update=async()=>{throw new Error('Invalid worker MIME type');};
+  f.setResponse({status:200,redirected:false,headers:{get:()=> 'text/html'}});
+  await f.api.checkForUpdates();
+  assert.equal(f.state.authRequired,true);assert.equal(f.state.ready,true);
+  f.registration.update=async()=>{};
+  await f.api.checkForUpdates();
+  assert.equal(f.state.authRequired,false);assert.equal(f.state.version,'old-cache');
+  assert.match(f.state.message,/已是最新版本/);
+});
+
+test('a disconnected update does not claim the login expired',async()=>{
+  const f=fixture();f.registration.installing=null;f.registration.active=f.worker;
+  await f.api.prepareOffline();f.message({type:'OFFLINE_READY',version:'old-cache'});
+  f.registration.update=async()=>{throw new Error('Network unavailable');};
+  f.context.fetch=async()=>{throw new Error('Offline');};
+  await f.api.checkForUpdates();
+  assert.equal(f.state.authRequired,false);assert.equal(f.state.ready,true);
+  assert.match(f.state.message,/無法檢查更新/);
+});
+
+test('startup explicitly checks an existing worker even when registration itself succeeds',async()=>{
+  const f=fixture();f.registration.installing=null;f.registration.active=f.worker;
+  let checks=0;f.registration.update=async()=>{checks++;throw new Error('Forbidden');};
+  f.setResponse({status:403,redirected:false,headers:{get:()=> 'text/html'}});
+  await f.api.prepareOffline();
+  assert.equal(checks,1);assert.equal(f.state.authRequired,true);
 });
