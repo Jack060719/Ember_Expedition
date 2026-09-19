@@ -1,7 +1,7 @@
 import './style.css';
 import { CHAPTERS, MISSIONS, WEAPONS, FACILITIES, ROOMS, UPGRADES, encounter, availableWeapons, createRun, finishRoom, settle, buyFacility, facilityCost, EVOLUTIONS, SYNERGIES, isEvolved, meetsRequirements, experienceForLevel, permanentGrowth, upgradeChoices, validateSave, type Save, type Run, type Weapon, type Difficulty, type Facility } from './core.ts';
 import { loadSave, writeSave } from './storage.ts';
-import { watchOffline, prepareOffline, applyUpdate, type OfflineState } from './offline.ts';
+import { watchOffline, prepareOffline, checkForUpdates, applyUpdate, type OfflineState } from './offline.ts';
 import { mountArena, type Arena } from './arena.ts';
 
 const app=document.querySelector<HTMLDivElement>('#app')!;
@@ -164,8 +164,8 @@ function installation(){
 }
 function renderOfflinePanel(){
   const panel=$('#offline-panel');if(!panel)return;
-  panel.innerHTML=`<div class="offline-state ${offline.ready?'complete':''}">${offline.ready?'✓':'◷'} ${esc(offline.message)}</div>${offline.detail?`<p class="modal-sub offline-detail">${esc(offline.detail)}</p>`:''}${offline.update?`<button class="primary full" id="update" ${save.run?'disabled':''}>${save.run?'遠征結束後可更新':'更新至已下載的新版本'}</button>`:!offline.ready?`<button class="primary full" id="retry-offline" ${offline.working?'disabled':''}>${offline.working?'正在準備…':'重新下載缺少的內容'}</button>`:''}`;
-  click('#retry-offline',()=>void prepareOffline());click('#update',()=>{if(!save.run)applyUpdate();});
+  panel.innerHTML=`<div class="offline-state ${offline.ready?'complete':''}">${offline.ready?'✓':'◷'} ${esc(offline.message)}</div>${offline.version?`<p class="modal-sub" id="offline-version">目前離線版本：${esc(offline.version)}</p>`:''}${offline.detail?`<p class="modal-sub offline-detail">${esc(offline.detail)}</p>`:''}${offline.update?`<button class="primary full" id="update" ${save.run?'disabled':''}>${save.run?'遠征結束後可更新':'更新至已下載的新版本'}</button>`:!offline.ready?`<button class="primary full" id="retry-offline" ${offline.working?'disabled':''}>${offline.working?'正在準備…':'重新下載缺少的內容'}</button>`:`<button class="primary full" id="check-update" ${offline.working?'disabled':''}>${offline.working?'正在檢查更新…':'檢查更新'}</button>`}`;
+  click('#retry-offline',()=>void prepareOffline());click('#check-update',()=>void checkForUpdates());click('#update',()=>{if(!save.run)applyUpdate();});
 }
 function settings(){
   modal(`<span class="eyebrow">SETTLE IN</span><h2>設定與存檔</h2><div class="settings-row"><div><strong>輕量音效</strong><p>啟程、升級與返回時的提示音</p></div><button id="sound" class="small-button">${save.settings.sound?'開啟':'關閉'}</button></div><div class="settings-row"><div><strong>你的旅程，存在這裡</strong><p>本機存檔 · ${save.profile.cleared}/6 主線完成</p></div><span>◇</span></div><div class="backup-actions"><button class="secondary" id="export">匯出備份</button><button class="secondary" id="import">匯入存檔</button></div><input type="file" accept="application/json,.json" id="import-file" hidden><p class="modal-sub">清除網站資料或移除 App 可能使進度消失。備份檔可以在同一網址的其他裝置匯入。</p><button class="text-button full" id="install-help">iPhone 安裝與離線說明 →</button><button class="primary" id="close">返回營地</button>`);
@@ -188,7 +188,7 @@ async function exportSave(){
   }catch(e){if((e as Error).name!=='AbortError')toast('備份分享失敗，請再試一次。');}
 }
 watchOffline(s=>{offline=s;const el=$('#offline');if(el){el.textContent=`${s.ready?'◇':'◷'} ${s.message}`;el.classList.toggle('ready',s.ready);}renderOfflinePanel();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();void audio?.suspend();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();void audio?.suspend();}else void checkForUpdates();});
 window.addEventListener('pagehide',()=>arena?.scene.pause());
 function registerTools(){
   type Tool={name:string;title:string;description:string;inputSchema:object;annotations:{readOnlyHint:boolean};execute:(input:unknown)=>unknown};

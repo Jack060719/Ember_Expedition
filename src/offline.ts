@@ -1,4 +1,4 @@
-export interface OfflineState { ready:boolean; working:boolean; update:boolean; message:string; detail?:string; }
+export interface OfflineState { ready:boolean; working:boolean; update:boolean; message:string; detail?:string; version?:string; }
 let state:OfflineState={ready:false,working:false,update:false,message:'準備離線內容'};
 let listener:(s:OfflineState)=>void=()=>{};
 let registration:ServiceWorkerRegistration|undefined;
@@ -33,7 +33,7 @@ export async function prepareOffline(){
       const data=event.data;
       if(data?.type==='OFFLINE_PROGRESS')downloading(`正在下載離線內容 ${data.done}/${data.total}`);
       if(data?.type==='OFFLINE_ERROR')send({working:false,message:state.ready?'已可離線遊玩 · 更新未完成':data.message,detail:data.detail});
-      if(data?.type==='OFFLINE_READY')send({ready:true,working:false,message:state.update?'已可離線遊玩 · 有新版本':'已可離線遊玩',detail:undefined});
+      if(data?.type==='OFFLINE_READY')send({ready:true,working:false,version:data.version,message:state.update?'已可離線遊玩 · 有新版本':'已可離線遊玩',detail:undefined});
       if(data?.type==='OFFLINE_MISSING'){
         send({ready:false});
         if(data.repaired)send({working:false,message:'離線內容未能完整保存，請重試',detail:data.missing});
@@ -43,7 +43,7 @@ export async function prepareOffline(){
     navigator.serviceWorker.addEventListener('controllerchange',check);
   }
   try{
-    registration=await navigator.serviceWorker.register('/sw.js',{scope:'/'});
+    registration=await navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'});
     if(!watchedRegistrations.has(registration)){
       watchedRegistrations.add(registration);
       registration.addEventListener('updatefound',()=>watchWorker(registration!.installing));
@@ -51,6 +51,15 @@ export async function prepareOffline(){
     watchWorker(registration.installing);watchWorker(registration.waiting);check();
     void navigator.storage?.persist?.().catch(()=>{});
   }catch(error){send({working:false,message:state.ready?'已可離線遊玩':'無法啟用離線下載',detail:(error as Error).message});}
+}
+export async function checkForUpdates(){
+  if(!registration?.active||!state.ready||state.working||state.update)return;
+  downloading('正在檢查更新…');
+  try{
+    await registration.update();
+    watchWorker(registration.installing);watchWorker(registration.waiting);
+    if(!registration.installing&&!registration.waiting)send({working:false,message:'已可離線遊玩 · 已是最新版本'});
+  }catch(error){send({working:false,message:'已可離線遊玩 · 無法檢查更新',detail:`請保持連網；若仍失敗，請重新登入網站後再試。 ${(error as Error).message}`});}
 }
 export function applyUpdate(){
   if(!registration?.waiting)return;

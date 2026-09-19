@@ -18,7 +18,7 @@ const server=createServer(async(req,res)=>{
   }
   try{
     let body=await readFile(path.join(root,name));
-    if(name==='sw.js'&&nextVersion)body=Buffer.from(body.toString().replace("const CACHE='ember-","const CACHE='ember-update-"));
+    if(name==='sw.js'&&nextVersion)body=Buffer.from(body.toString().replace("const CACHE='ember-","const CACHE='ember-update-").replace("version:'","version:'update-"));
     res.writeHead(200,{'Content-Type':types[path.extname(name)]??'application/octet-stream','Cache-Control':'no-store'});res.end(body);
   }
   catch{res.writeHead(404).end();}
@@ -69,13 +69,27 @@ try{
 
   const updating=await browser.newContext(), updatePage=await updating.newPage();await updatePage.goto(origin);
   await expect(updatePage.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});
-  await updatePage.locator('#offline').click();nextVersion=true;
-  await updatePage.evaluate(async()=>{await (await navigator.serviceWorker.getRegistration()).update();});
+  await updatePage.locator('#offline').click();
+  await expect(updatePage.locator('#offline-version')).toContainText(/目前離線版本：[0-9a-f]{12}/);
+  await updatePage.locator('#check-update').click();await expect(updatePage.locator('.offline-state')).toContainText('已是最新版本');
+  nextVersion=true;await updatePage.locator('#check-update').click();
   await expect(updatePage.locator('#update')).toBeEnabled({timeout:20000});
   const reloaded=updatePage.waitForEvent('domcontentloaded');await updatePage.locator('#update').click();await reloaded;
   await expect(updatePage.locator('#journey')).toBeVisible();
   await expect(updatePage.locator('#offline')).toContainText('已可離線遊玩');
+  await updatePage.locator('#offline').click();await expect(updatePage.locator('#offline-version')).toContainText('update-');
   assert.ok((await updatePage.evaluate(()=>caches.keys())).every(name=>name.startsWith('ember-update-')));
   await disconnect(updating);await updatePage.reload();await expect(updatePage.locator('#journey')).toBeVisible();
-  await updating.close();console.log('PASS downloaded update activates safely and remains playable offline');
+  await updating.close();console.log('PASS manual update check, installed version display, activation and offline play');
+
+  nextVersion=false;
+  const resuming=await browser.newContext(), resumePage=await resuming.newPage();await resumePage.goto(origin);
+  await expect(resumePage.locator('#offline')).toContainText('已可離線遊玩',{timeout:20000});
+  await resumePage.locator('#journey').click();await resumePage.locator('#begin').click();await resumePage.locator('#back-camp').click();
+  nextVersion=true;
+  await resumePage.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await expect(resumePage.locator('#offline')).toContainText('有新版本',{timeout:20000});
+  await resumePage.locator('#offline').click();await expect(resumePage.locator('#update')).toBeDisabled();
+  await resumePage.locator('#close').click();await expect(resumePage.locator('#resume')).toBeVisible();
+  await resuming.close();console.log('PASS returning to the app detects an update without activating during an expedition');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
