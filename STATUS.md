@@ -4,7 +4,7 @@
 
 ## 目前結論
 
-- Android 分支 TASK-007 已依使用者選擇完成 Chrome 主畫面安裝說明與私人 manifest 讀取修正，Android 模擬的遊玩／離線／更新回歸通過。尚未提交、合併或發布；系統安裝與真實登入往返仍待 Android 手機驗收，詳見本檔最新交接。
+- Android 分支 TASK-007 已依使用者選擇完成 Chrome 主畫面安裝說明與私人 manifest 讀取修正，Android 模擬的遊玩／離線／更新回歸通過。實作已提交 `a1e009e` 並部署獨立私人測試站，尚未合併 main 或更新正式站；系統安裝與真實登入往返仍待 Android 手機驗收，詳見本檔最新交接。
 - 一般關卡的難度調整已實作、完成本機驗證，且在 2026-09-19 獲使用者試玩認可。
 - TASK-001 第二輪已依試玩回饋增加首領生命 25%、每波增援 8 → 12 隻，已完成本機回歸，並於 2026-09-19 獲使用者試玩認可；任務已完成、結案。
 - 新角色、更多武器／升級、自由搭配與無盡模式亦為下一版方向，詳見 [ROADMAP.md](ROADMAP.md)。
@@ -66,13 +66,20 @@ TASK-001 實作與驗收紀錄已提交於 `7e3f8d1`；main 原有任務卡與�
 
 ## 進行中任務與最近交接
 
-### Android 分支獨立測試站：2026-09-19（部署中）
+### Android 分支獨立測試站：2026-09-19（已部署）
 
-使用者要求先提供 Android 分支的測試連結，不必先合併 main。採獨立私人 Sites 站台；原專案 `.openai/hosting.json` 身分與正式站第 6 版維持不變。測試站在忽略的 `artifacts/android-preview/` 保存自己的 `.openai/hosting.json` 與可追溯的靜態發布來源，僅部署本分支已驗證的 `dist/`。不同網址的存檔分開，玩家可透過 JSON 備份轉入；不將測試存檔或原始美術放入發布包。完成後補記測試網址、版本與實際驗證。
+使用者要求先提供 Android 分支的測試連結，不必先合併 main。採獨立私人 Sites 站台；原專案 `.openai/hosting.json` 身分與正式站第 6 版維持不變。測試站在忽略的 `artifacts/android-preview/` 保存自己的 `.openai/hosting.json` 與可追溯的靜態發布來源，僅部署本分支已驗證的 `dist/`。不同網址的存檔分開，玩家可透過 JSON 備份轉入；不將測試存檔或原始美術放入發布包。
+
+- 測試網址：[餘燼遠征 Android 測試](https://ember-expedition-android-test.asterina-co.chatgpt.site)。新站維持預設僅擁有者登入可見；未公開或邀請外部訪客。請用建立站台的 ChatGPT 帳號登入。
+- 遊戲來源為本分支 `a1e009eb0342e8b4ffbd478c5384fb85c5668112`。重新建置得到相同離線版本 `3a89987cf628`；測試站的靜態來源另提交並推送至它自己的 Sites 儲存庫，提交 `a1747d981f29766c0c49cf765085691dd2f62a91`。這是測試站儲存庫的 main，沒有合併遊戲儲存庫的 main。
+- 測試站 ID：`appgprj_6aae9c2012588191a2ab3a9404fa0bcb`。第 1 版 ID：`appgprj_6aae9c2012588191a2ab3a9404fa0bcb~appgver_696539b466648191beef1ef42445c994`。部署 `appgdep_6aae9c83a6288191b11b57956d393dad` 回報 `succeeded`。後續更新此測試站沿用該 ID，不重建站台，也不覆蓋根目錄的正式站設定。
+- 發布包只有新站 hosting 設定與完整 `dist/`，共 16 檔；打包後逐一比對發布包、靜態來源與本分支建置，內容完全相同。測試站部署後再查原站仍為第 6 版，原擁有者與外部檢視者的存取設定保留。
+- 實際執行 `node artifacts/verify-android-preview.mjs`：未登入回傳 401；使用平台提供的 API 驗證方式取得 15 個線上檔案，JS／CSS／圖片／manifest／Worker 均與本機逐位元一致，首頁保留原所有資源連結與帶憑證的 manifest 設定（允許平台注入 HTML）。線上 Pixel 5 模擬的 Android 安裝／更新說明、戰鬥載入、暫停與檢查點重新載入通過，無 page error。報告與截圖為忽略的 `artifacts/android-preview-published-report.json`、`android-preview-install.png`。
+- 此線上瀏覽器驗證使用 API 授權並停用 Service Worker，不能替代真實 ChatGPT 登入或線上離線更新驗收；本機完整 Android 離線／更新回歸結果見下方。手機可開始驗收，先確認主畫面圖示與離線準備，再用飛航模式冷啟動；本次未宣稱實機已通過。
 
 ### Android 主畫面安裝與後續更新：2026-09-19
 
-任務／負責者／分支與工作樹／基準：TASK-007／Codex／`Jack060719/for_Android`，`C:\Users\User\orca\workspaces\nowifi\for_Android`／`5710d00338ebc753d5d09521eccc797dab7c50a4`。開工時工作樹乾淨。狀態：本機實作與驗證完成、待手機驗收；尚未提交／合併／發布。
+任務／負責者／分支與工作樹／基準：TASK-007／Codex／`Jack060719/for_Android`，`C:\Users\User\orca\workspaces\nowifi\for_Android`／`5710d00338ebc753d5d09521eccc797dab7c50a4`。開工時工作樹乾淨。狀態：本機實作與驗證完成、待手機驗收；後續已提交並部署獨立測試站，見上方最新紀錄，尚未合併 main 或更新正式站。
 
 使用者已確認「Chrome 開啟並加入主畫面，沿用網站更新」。`index.html` 的 manifest 連結加入 `crossorigin="use-credentials"`；在本機登入保護伺服器、停用 Service Worker 的獨立 Chromium 環境先重現原版 manifest 請求未帶 cookie、回傳 401 且無內容，修正後可直接載入 manifest 與既有 192／512px 圖示。這是本機驗證，未將 Android 系統安裝或正式站登入視為已通過。
 
