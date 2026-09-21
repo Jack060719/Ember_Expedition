@@ -1,0 +1,46 @@
+{
+  "id": "meteor",
+  "runtime": "../../../public/assets/upgrades/meteor.png",
+  "size": [128, 128],
+  "mode": "RGBA",
+  "frames": 1,
+  "origin": [64, 64],
+  "travel_direction": "down",
+  "collision": "The impact circle uses meteorStats.radius; the sprite bounds do not cause damage.",
+  "generation": {
+    "tool": "built-in image_gen",
+    "date": "2026-09-21",
+    "reference": "../../../public/assets/props.png",
+    "reference_role": "Style only; no shared atlas changes.",
+    "raw": "raw.png",
+    "prompt": "prompt-used.txt",
+    "background": "Generated transparent alpha; chroma removal disabled."
+  },
+  "processing": {
+    "tool": "generate2dsprite.py process",
+    "metadata": "pipeline-meta.json",
+    "grid": [1, 1],
+    "fit_scale": 0.8,
+    "align": "center",
+    "component_mode": "largest",
+    "component_padding": 2,
+    "threshold": 0,
+    "edge_threshold": 0,
+    "trim_border": 0,
+    "reason": "Keep the connected flame and star; exclude stray near-invisible disconnected pixels that inflated the first export bounds."
+  },
+  "qc": {
+    "visual_review": "Complete downward star and flame; readable at 128px, no background or clipped tip.",
+    "alpha_extrema": [0, 255],
+    "alpha_bbox": [41, 13, 87, 115],
+    "transparent_outer_border": true,
+    "empty_frames": 0,
+    "edge_touch_frames": 0,
+    "paste_clamped_frames": 0,
+    "runtime_sha256": "d1e537bb8aeab89bec6708d5afdf103018f363097f6170f2ee1eeda80dd93c35"
+  },
+  "limitations": [
+    "This is a single static frame, not an animation sheet.",
+    "Scene placement, dense-combat visibility and iPhone rendering require integration verification."
+  ]
+}

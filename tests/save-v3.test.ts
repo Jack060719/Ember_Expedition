@@ -96,6 +96,6 @@ test('v3 rejects missing, unknown and locked character fields without changing t
 });
 
 test('auto upgrades come from the registry and retain the existing skill order',()=>{
-  assert.deepEqual(core.AUTO_UPGRADES.map(u=>u.id),['storm','orbit','nova']);
+  assert.deepEqual(core.AUTO_UPGRADES.map(u=>u.id),['storm','orbit','nova','meteor']);
   assert.deepEqual(core.AUTO_UPGRADES,core.UPGRADES.filter(u=>u.category==='auto'));
 });
