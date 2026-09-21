@@ -65,6 +65,8 @@ try {
   await page.locator('#settings').click();
   const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;
   await download.saveAs('artifacts/save-export.json');
+  const exported=JSON.parse(await readFile('artifacts/save-export.json','utf8'));
+  assert.equal(exported.version,3);assert.equal(exported.run.character,'keeper');assert.equal(exported.settings.preferredCharacter,'keeper');
   await page.locator('#import-file').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"version":99}')});
   await expect(page.locator('.toast')).toContainText('格式或版本');
   await page.locator('#close').click();await expect(page.locator('#resume')).toBeVisible();
@@ -74,8 +76,26 @@ try {
     await page.locator('#settings').click();
     await page.locator('#import-file').setInputFiles({name:'fixture.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(value))});
     await page.locator('#confirm-import').click();
+    await expect(page.locator('#confirm-import')).toHaveCount(0);
     await expect(page.locator('#resume')).toBeVisible();
   }
+  const oldV2=JSON.parse(await readFile('tests/fixtures/save-v2.json','utf8'));
+  await importSave(oldV2);await page.reload();await page.locator('#resume').click();
+  await expect(page.locator('.travel-health')).toContainText('63 / 130');
+  await page.locator('#back-camp').click();await page.locator('#settings').click();
+  const migratedDownload=page.waitForEvent('download');await page.locator('#export').click();
+  await (await migratedDownload).saveAs('artifacts/save-v3-migrated.json');
+  const migrated=JSON.parse(await readFile('artifacts/save-v3-migrated.json','utf8'));
+  assert.deepEqual(migrated,{...oldV2,version:3,settings:{...oldV2.settings,preferredCharacter:'keeper'},run:{...oldV2.run,character:'keeper'}});
+  await page.locator('#close').click();
+  const characterSave=initialSave();characterSave.profile.cleared=2;characterSave.settings.preferredCharacter='scout';
+  characterSave.run=createRun(characterSave.profile,0,'staff','normal',8,'warden');
+  await importSave(characterSave);await page.reload();await page.locator('#settings').click();
+  const characterDownload=page.waitForEvent('download');await page.locator('#export').click();
+  await (await characterDownload).saveAs('artifacts/save-v3-character.json');
+  assert.deepEqual(JSON.parse(await readFile('artifacts/save-v3-character.json','utf8')),characterSave);
+  await page.locator('#close').click();
+  report.push('V2 imports offline without healing or granting starter upgrades; v3 exports preserve a distinct camp preference and active character.');
   const learning=initialSave();learning.run=createRun(learning.profile,0,'staff','normal',4);learning.run.xp=experienceForLevel(1);
   await importSave(learning);await page.locator('#resume').click();await page.locator('#enter-room').click();
   await expect(page.locator('[data-upgrade]')).toHaveCount(3);
@@ -92,7 +112,8 @@ try {
   const fixture=initialSave();fixture.profile.cleared=5;fixture.profile.facilities.forge=2;fixture.profile.embers=250;
   fixture.run=createRun(fixture.profile,4,'halo','normal',42);fixture.run.room=3;
   for(const u of UPGRADES)fixture.run.upgrades[u.id]=u.max;
-  const legacy=structuredClone(fixture);legacy.version=1;legacy.run.route='risk';legacy.run.puzzle={mask:79,moves:8};delete legacy.run.growth;
+  const legacy=JSON.parse(await readFile('tests/fixtures/save-v1.json','utf8'));legacy.profile=structuredClone(fixture.profile);
+  Object.assign(legacy.run,{mission:4,weapon:'halo',hp:100,maxHp:100,upgrades:{power:5,haste:4,stride:3,vitality:4,reach:3,split:3,pierce:3,ember:3,frost:3,storm:3,ward:3,mend:3,orbit:3,nova:3,magnet:2,fortune:3,focus:3,secondwind:1}});
   await importSave(legacy);await page.locator('#resume').click();
   await expect(page.locator('.route-content')).toContainText('ROOM 04 / 07');
   await expect(page.locator('[data-route],#enter-puzzle,#puzzle-hint')).toHaveCount(0);
@@ -132,7 +153,7 @@ try {
   await page.waitForTimeout(1000);
   assert.equal(await page.locator('#boss-fill').getAttribute('style'),bossHealth);assert.equal(await page.locator('#health-label').textContent(),heroHealth);
   await page.locator('#checkpoint').click();await page.reload();await page.locator('#resume').click();await page.locator('#enter-room').click();
-  await expect(page.locator('#boss-track')).toBeVisible();await expect(page.locator('#health-label')).toContainText('200 / 200');
+  await expect(page.locator('#boss-track')).toBeVisible();await expect(page.locator('#health-label')).toContainText('220 / 220');
   await page.screenshot({path:'artifacts/boss-resume-mobile.png'});
   await expect(page.locator('.result-shell')).toContainText('你把火光帶回來了',{timeout:90000});
   await page.locator('#home').click();const bossReward=await page.locator('.currency').textContent();

@@ -48,9 +48,9 @@ Safari 分頁和主畫面 App 的儲存資料可能不同，請在主畫面版�
 - 每次遠征以約 8–12 分鐘為節奏目標，實際時間取決於配裝、選擇與首領戰；仍需實玩校準。普通／困難可重玩，每局依種子排列遭遇。
 - 暫停或切到背景會停止戰鬥；程序被關閉後從房間入口恢復，可能重打當前房間。
 - 失敗保留一半本局火種，保留所有永久成長；撤退帶回已收集火種。
-- 存檔格式升至 v2，自動讀取 v1：保留永久進度與本局能力，舊解謎房接續新戰鬥房，後續房號前移一格，不重複發放獎勵。
+- 共用開發基線的存檔格式為 v3，自動讀取 v1／v2：保留永久進度、血量與本局能力，只補入 keeper 角色與營地偏好；不贈送起手能力或回血。v1 舊解謎房接續新戰鬥房，後續房號前移一格，不重複發放獎勵。
 
-本次平衡更新維持 v2 存檔：保留等級、能力、經驗與永久成長，後續升級採用新的經驗門檻。下一版的角色、武器、自由搭配與無盡模式方向見 [下一版規劃](ROADMAP.md)。
+角色共用基線預設 keeper，新局含 vitality 1，因此燈塔 0 級為 120 生命；角色選擇介面與素材、新武器及新升級仍由 TASK-002／003／004 開發，尚未整合或發布。角色起手與書庫相加並受能力上限限制，預覽與新局共用 `startingLoadout`；舊局不重算起手。下一版方向見 [下一版規劃](ROADMAP.md)。
 
 本版升級經驗需求為原本的 11 倍；一般房間每批基礎怪量依序為 4、4、5、5、7、10、12，至少四分之三直接生成近身雜兵，其餘依遭遇抽選。普通怪基礎生命增加 20%，每房生命成長由 6.5% 提高到 8%。同場上限為 160 隻。成型前的第 4–5 房採較緩的怪量增幅，將大量增援留到第 6–7 房。
 
@@ -77,7 +77,7 @@ npm run test:android
 
 `npm run test:android` 在建置後執行，會依序自建本工作樹的預覽／開發／離線測試伺服器並在結束時關閉；全部使用 4180 埠，執行前須確認沒有其他測試佔用。以 Playwright Pixel 5 的 Chrome UA、觸控與畫面尺寸跑完整瀏覽器流程、49 項戰鬥／觸控檢查及離線更新回歸，另驗證私人 manifest 在快取建立前可帶登入憑證讀取，並確認 iPhone 安裝提示保留。Android 報告為 `artifacts/android-browser-report.json`、`android-arena-report.json`，安裝畫面為 `install-android.png`；離線結果輸出至終端。這些是 Chromium 模擬，不含 Android 系統安裝面板、真正 OAuth 登入或手機效能驗收。
 
-`src/core.ts` 為規則與存檔格式；`src/arena.ts` 為 Phaser 場景、碰撞和單指操作；`src/main.ts` 為營地、主線與存檔操作。`scripts/build-offline.mjs` 將正式輸出全部檔案加入具內容版本的 Service Worker 快取。所有遊玩依賴都在同一來源，無執行時 CDN、帳號 API 或線上關卡。
+`src/core.ts` 為規則與存檔格式，並 re-export `characters.ts`／`weapons.ts`／`upgrades.ts` 的唯一資料表與型別；`src/arena.ts` 為 Phaser 場景、碰撞和單指操作；`src/main.ts` 為營地、主線與存檔操作。`scripts/build-offline.mjs` 將正式輸出全部檔案加入具內容版本的 Service Worker 快取。所有遊玩依賴都在同一來源，無執行時 CDN、帳號 API 或線上關卡。
 
 本機檢查涵蓋：規則與 v1 遷移測試、Chromium 手機尺寸與桌面畫面、真正斷網後的新頁面啟動、存檔續玩、備份匯出及無效匯入、結算不重複發獎、武器進化／首領／技能協同、跨幀動畫、預警近戰、160 怪物連爆、30／60 FPS 環繞傷害一致性與完整清場流程。這些不等於 iPhone Safari 實機測試。
 
@@ -94,7 +94,7 @@ npm run test:android
 ## 維護者發布更新
 
 1. 保留原 HTTPS 網址、manifest 的 `id`／`start_url`／`scope`、IndexedDB 名稱與 `.openai/hosting.json` 身分。網站目前仍需登入；manifest 連結使用 `crossorigin="use-credentials"`，依 [Chrome 官方說明](https://web.dev/articles/add-manifest) 攜帶登入憑證。
-2. 執行 `npm test`、`npm run build` 與 `npm run test:android`，再檢查受影響的其他功能。建置會依內容產生新的 `sw.js` 快取版本，遊戲更新不依賴手動修改 `package.json` 版號；Save v2 是另一個獨立的存檔版本。
+2. 執行 `npm test`、`npm run build` 與 `npm run test:android`，再檢查受影響的其他功能。建置會依內容產生新的 `sw.js` 快取版本，遊戲更新不依賴手動修改 `package.json` 版號；Save v3 是另一個獨立的存檔版本。
 3. 將同一次建置的完整 `dist/` 發布到原網站。合併 main 不等於更新正式站；實際發布另記錄於 STATUS。
 4. 在已有舊版與存檔的 Android 主畫面 App 保持連網、檢查更新，確認遠征中無法套用，完成或撤退後才更新。比對存檔、離線版號，再用飛航模式關閉並重開遊戲驗證。若登入到期，使用遊戲內「重新登入以更新」恢復；更新不以重裝或清除資料為步驟。
 

@@ -1,9 +1,10 @@
 # 目前狀態與協作交接
 
-更新日期：2026-09-19。此檔是本機專案快照；開始下一項工作前，依 [AGENTS.md](AGENTS.md) 重新核對工作樹與當次指派。
+更新日期：2026-09-21。此檔是本機專案快照；開始下一項工作前，依 [AGENTS.md](AGENTS.md) 重新核對工作樹與當次指派。
 
 ## 目前結論
 
+- TASK-002／003／004 已獲使用者核准並行開發。整合者在 main 的 `6c4f441`（含 Android 更新）上建立共用資料模組、角色起手與 Save v3 基線；角色 UI／素材、新武器與三項新升級尚未整合，這不是可發布的完整功能版本。交接契約見下節。
 - Android 分支 TASK-007 已依使用者選擇完成 Chrome 主畫面安裝說明與私人 manifest 讀取修正，Android 模擬的遊玩／離線／更新回歸通過。獨立私人測試站已部署，使用者回報目前無問題；review 與 main 整合驗證通過，已合併 main，正式站尚未發布這次更新。系統安裝與真實登入往返仍待 Android 手機逐項驗收，詳見本檔最新交接。
 - 一般關卡的難度調整已實作、完成本機驗證，且在 2026-09-19 獲使用者試玩認可。
 - TASK-001 第二輪已依試玩回饋增加首領生命 25%、每波增援 8 → 12 隻，已完成本機回歸，並於 2026-09-19 獲使用者試玩認可；任務已完成、結案。
@@ -19,11 +20,42 @@
 | 平衡 | 升級經驗需求乘 11；一般房基礎批量為 4、4、5、5、7、10、12，增加怪量主要由近身雜兵承接。同場上限 160。完整數值見 [README.md](README.md)。 |
 | 現有首領 | TASK-001 第二輪：普通生命 4,500／6,500／7,000、平時移速 34／24／36，困難生命乘 1.35；每 2.5 秒增援 12 隻。新招式與半血變化見 README。原先生命 +10%、每 2.5 秒增援 8 隻是任務開始前基準。 |
 | 營地 | 工坊、燈塔、書庫各 20 級，永久成長與武器／起始技能解鎖保留。 |
-| 存檔 | `Save.version = 2`，支援 v1 遷移；IndexedDB、JSON 匯出／匯入、房間入口續玩與單次結算。 |
+| 存檔 | 共用開發基線為 `Save.version = 3`，支援 v1／v2 遷移；分別保存營地偏好與當局角色，舊局不補能力或回血。IndexedDB、JSON 匯出／匯入、房間入口續玩與單次結算保留。 |
 | 離線 | 本地素材、內容版本快取、缺檔補回、下載重試與遠征結束後套用更新。 |
 | 尚無的系統 | 多角色選擇、無盡模式與最高層數紀錄。`profile.bestHard` 是困難通關次數，不是最高層數。 |
 
-`package.json` 目前仍為 `1.0.0`；套件版本、存檔 v2、Service Worker 的內容雜湊及「下一版」功能規劃不是同一個版本概念。
+`package.json` 目前仍為 `1.0.0`；套件版本、存檔 v3、Service Worker 的內容雜湊及「下一版」功能規劃不是同一個版本概念。
+
+## 共用基線與並行交接：2026-09-21
+
+任務／負責者／工作樹：TASK-002／003／004 共用基線，由 main 整合者負責；基於 `6c4f441ddab64fa939de10e8caf55e9c4e7ed078`。各任務原從 `5710d003` 分出，接入時合併本節所在的共同提交，以一併保留 Android 與既有首領版本；勿只拷貝個別程式檔。
+
+| 唯一資料來源／負責者 | 可用介面與修改範圍 |
+| --- | --- |
+| `src/characters.ts`／TASK-002 | `CHARACTERS`、衍生 `CharacterId`、`DEFAULT_CHARACTER='keeper'`、`availableCharacters(profile)`。已含 `name/requiredCleared/startingUpgrades`；002 擴充 `description/spritePath/textureKey/animationPrefix`、負責 `main.ts/style.css` 與角色素材／獨立測試。 |
+| `src/weapons.ts`／TASK-003 | 整張 `WEAPONS`（含 `requiredForge`）、衍生 `Weapon`、`EVOLUTIONS`、`availableWeapons(profile)`；此表也由 003 擴充戰鬥參數。基線只移入既有三把；新 ID 與攻擊一起實作。003 唯一修改 `arena.ts`，接入角色外觀與 004 效果，負責戰鬥／平衡／首領腳本。 |
+| `src/upgrades.ts`／TASK-004 | 唯一升級登記表 `UPGRADES`、衍生 `UpgradeId`、`Upgrade`、`UpgradeCategory`。category 為 auto/offense/survival/utility；`AUTO_UPGRADES` 為依 category 推導的物件陣列。基線只有原 18 項且順序不變；004 新增三項 ID、`upgradeDescription(id,level)` 及 `ability-effects.ts`、對應素材／獨立測試。 |
+| `src/core.ts`／整合者 | re-export 上列既有介面，仍持有 `Profile/Run/Save`、`createRun/upgradeChoices/applyUpgrade/validateSave`；`SYNERGIES` 保留原兩項。固定 fixtures、既有 core 測試、`scripts/check-game.mjs`、狀態與產品文件由整合者維護。 |
+
+模組對 `Profile`／`Run` 僅用 type-only import，避免執行期循環；不另拆共用 types 檔。新增函式從負責模組匯入，若需 core re-export 由整合者處理，不讓三人同改 core。
+
+- `startingLoadout(profile,character=DEFAULT_CHARACTER)` 回傳 `{hp,maxHp,upgrades,growth}`，是允許預覽鎖定角色的純查詢，不產生 ID、不改 profile。`createRun(profile,mission,weapon,difficulty,seed,character=DEFAULT_CHARACTER)` 檢查角色解鎖後共用此結果。角色與書庫起手相加且封頂，只用於新局；keeper 在燈塔 0 級是 120 血。
+- Save v3 必須包含 `settings.preferredCharacter` 與當局 `Run.character`，兩者可不同，且須為已解鎖角色。v1／v2 只補 keeper，不重算 hp/maxHp/upgrades；v1 沿用移除路線／解謎與房號遷移。驗證會拒絕未知版本／ID、缺欄位及越級能力；IndexedDB 的資料庫名稱、store/key 與資料庫版本 1 不變。
+- 004 提供純函式 `meteorStats(upgrades)`、`cullMultiplier(upgrades,hp,maxHp,secondary=false)`、`resolveMultiplier(upgrades,hp,maxHp)`。星墜回傳 null 或 `{damageMultiplier,radius,cooldown,targetRange:300,delay:.4,initialDelay:1}`；計時與唯一待落擊由 003 場景持有，不寫入存檔。細節與數值見 PROJECT；`upgradeDescription` 使用同一組數值，供 002 介面接入。
+- 003 已回報只修改其自有 `scripts/check-boss.mjs`：涵蓋全 src/*.ts 雜湊、瀏覽器 raw 來源比對、工作樹／branch／status／Save 版本、shoot 參數轉送、resolve 量測與 checkpoint 驗證。接共同提交後先固定 driver、建立未改 arena 的 `boss-baseline.json`，再修改戰鬥；baseline 包含 keeper 新局起手，不能冒充舊 5710d003 基準。整合者不覆寫此報告或 driver。
+- 測試埠 5173／4173／4180 先由整合者驗證本基線；明確釋放後交 003 建立首領基準，再由 002／004 協調時段。單元與建置不占這三埠，各樹可自行執行。每次瀏覽器量測須確認來源工作樹，不能終止他人伺服器。
+
+| 本次驗證（Node v24.20.0、Chromium） | 結果 |
+| --- | --- |
+| `npm test` | 31 項通過。固定 `tests/fixtures/save-v1.json`／`save-v2.json` 不由新版 createRun 合成；覆蓋原血量、能力、永久進度、v1 房號、重複遷移、解鎖及偏好與當局角色不同。 |
+| `npm run build` | 通過；離線版本 `2a37bf3702ba`，14 個資源；仍有既有 bundle 大小提示。 |
+| `npm run test:browser` | 通過；新增離線 v2 匯入後重開仍為 63／130 血量、v3 角色欄位匯出完整比對。測試等待匯入寫入完成再重開，避免把尚未完成的寫入當成遷移失敗。 |
+| `npm run test:arena` | 49 項機制／觸控檢查及 24 組共 168 房通過；光環第 4 房、法杖／短劍第 5 房進化。 |
+| `npm run test:offline` | 缺檔、登入失效恢復、遠征期間阻止更新、更新後保留存檔與離線重開皆通過。 |
+| `npm run test:android` | Pixel 5／Chrome 模擬的完整瀏覽器流程、49 項戰鬥檢查、manifest 與離線／更新回歸通過。 |
+| `node --check scripts/check-game.mjs`、`git diff --check` | 通過；本基線未修改 arena/main、首領量測 driver 或發布檔案。 |
+
+存檔／離線／部署：本基線不新增美術資源，保留 Android 安裝與登入恢復、原網站身分；未發布。TASK-008 的寵物草案需另定後續 schema 版本，本次不新增寵物欄位。待辦為三個功能分支接入、功能測試與最終整合；真實 iPhone／Android 安裝、登入往返與長時間效能不在本機回歸的驗證範圍。
 
 ## 前一輪遊戲驗證：2026-09-18
 
@@ -48,7 +80,7 @@
 - TASK-001 已依本次普通光環對幽龍測試存檔的使用者回饋驗收；其他首領／武器／難度組合尚無逐項真人試玩紀錄，自動測試不能代替這些體驗驗證。
 - iPhone Safari／主畫面實機操作、長時間效能與發熱耗電、兩小時連玩及七天後離線重開尚未完成驗證。
 - 原生 WebMCP 介面註冊尚未在具備對應能力的環境驗證。
-- 下版的具體內容、數值與存檔變更須另行設計；不要從舊討論檔挑一個提案直接當成已定案規格。
+- TASK-002／003／004 使用 PROJECT 中已核准規格；其餘未定案的下版內容仍須另行設計，不從舊討論檔挑提案當作正式規格。
 
 ## Git 基準與搬移
 

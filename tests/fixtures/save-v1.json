@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "profile": { "embers": 275, "cleared": 4, "facilities": { "forge": 3, "beacon": 4, "archive": 3 }, "totalKills": 91, "expeditions": 7, "bestHard": 1 },
+  "run": {
+    "id": "legacy-v1-checkpoint", "seed": 222, "mission": 3, "difficulty": "normal", "weapon": "blade",
+    "room": 3, "hp": 63, "maxHp": 140, "embers": 94, "kills": 52, "elapsed": 174,
+    "upgrades": { "power": 3, "reach": 1, "ember": 2 }, "level": 7, "xp": 17,
+    "secondWindUsed": false, "route": "risk", "puzzle": { "mask": 79, "moves": 8 }
+  },
+  "settings": { "sound": true }
+}
