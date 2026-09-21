@@ -27,7 +27,7 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:'artifacts/weapons-camp-320.png',fullPage:true});
   results.push('Five weapons render at 320px; forge three unlocks boomerang and four unlocks hammer.');
-  await page.locator('[data-weapon="hammer"]').click();await expect(page.locator('.weapon-note')).toContainText('延遲落錘');
+  await page.locator('[data-weapon="hammer"]').click();await expect(page.locator('.weapons + .weapon-note')).toContainText('延遲落錘');
   await page.locator('#journey').click();await page.locator('#begin').click();await expect(page.locator('.travel-health')).toContainText('震地戰錘');
   await page.locator('#back-camp').click();
   await context.setOffline(true);

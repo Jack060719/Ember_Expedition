@@ -4,8 +4,6 @@ import { WEAPONS, weaponDamage, skillDamage, weaponRange, weaponCooldown } from 
 import { CHARACTERS } from './characters.ts';
 import { meteorStats, cullMultiplier, resolveMultiplier } from './ability-effects.ts';
 
-import { CHARACTERS } from './characters.ts';
-
 export interface ArenaHooks {
   hud: (run:Run, remaining:number, bossHp:number|null, phase:ArenaPhase, enemies:number) => void;
   upgrade: (run:Run, choose:(id:UpgradeId)=>void) => void;
