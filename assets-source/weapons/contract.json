@@ -1,0 +1,30 @@
+{
+  "generator": "built-in image_gen",
+  "reference": "../../public/assets/props.png",
+  "cellSize": 128,
+  "mode": "RGBA",
+  "origin": [64, 64],
+  "atlases": {
+    "boomerang": {
+      "file": "../../public/assets/weapons/boomerang.png",
+      "size": [256, 128],
+      "rows": 1,
+      "cols": 2,
+      "frames": ["boomerang", "boomerang-evolved"],
+      "raw": "boomerang/raw.png",
+      "prompt": "boomerang/prompt-used.txt",
+      "metadata": "boomerang/processed/pipeline-meta.json"
+    },
+    "hammer": {
+      "file": "../../public/assets/weapons/hammer.png",
+      "size": [384, 128],
+      "rows": 1,
+      "cols": 3,
+      "frames": ["hammer", "hammer-evolved", "hammer-impact"],
+      "raw": "hammer/raw.png",
+      "prompt": "hammer/prompt-used.txt",
+      "metadata": "hammer/processed/pipeline-meta.json"
+    }
+  },
+  "review": "All five static frames visually inspected at runtime atlas size. Complete silhouettes, distinct evolved variants, no empty frames, output-edge contact or paste clamping. Impact frame contains intentional detached embers. Generated alpha was preserved; raw output dimensions differ from requested dimensions and were processed into exact 128px cells."
+}

@@ -1,27 +1,34 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 const baseline=process.argv.includes('--baseline');
 await mkdir('artifacts',{recursive:true});
 const before=baseline?null:JSON.parse(await readFile('artifacts/boss-baseline.json','utf8'));
+const hash=value=>createHash('sha256').update(value).digest('hex');
+const sourceFiles=(await readdir('src',{recursive:true})).filter(file=>file.endsWith('.ts')).map(file=>'src/'+file.replaceAll('\\','/')).sort();
+const sources=Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,hash(await readFile(file))])));
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:430,height:840},isMobile:true,hasTouch:true});
 const report={commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),node:process.version,browser:browser.version(),
-  arenaHash:createHash('sha256').update(await readFile('src/arena.ts')).digest('hex'),
-  driverHash:createHash('sha256').update(await readFile('scripts/check-boss.mjs')).digest('hex'),checkpoints:[],preparation:[],results:[]};
+  branch:execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim(),worktree:process.cwd(),
+  status:execFileSync('git',['status','--short'],{encoding:'utf8'}).trim(),sources,sourceHash:hash(JSON.stringify(sources)),arenaHash:sources['src/arena.ts'],
+  driverHash:hash(await readFile('scripts/check-boss.mjs')),saveVersion:null,checkpoints:[],preparation:[],results:[]};
 try{
   await page.goto('http://localhost:5173/');
-  await page.evaluate(async()=>{
+  const served=await page.evaluate(async files=>Promise.all(files.map(async file=>[file,await fetch('/'+file+'?raw').then(r=>r.text()).then(text=>text.startsWith('export default ')?JSON.parse(text.split('\n')[0].slice(15).replace(/;$/, '')):text)])),sourceFiles);
+  for(const [file,source] of served)assert.equal(hash(source),sources[file],file+' is served from the measured worktree');
+  report.saveVersion=await page.evaluate(async()=>{
     const {mountArena}=await import('/src/arena.ts');
     const {initialSave,createRun,finishRoom,upgradeChoices,isEvolved,validateSave}=await import('/src/core.ts');
     document.querySelector('#app').remove();
     window.bossCheck=async(input,prepare=false)=>{
       const save=initialSave();save.profile.cleared=6;
       if(prepare)save.profile.facilities=input.facilities;
-      let run=prepare?createRun(save.profile,input.chapter*2+1,input.weapon,'normal',input.seed):structuredClone(input.run);
+      if(!prepare)save.profile.facilities={forge:20,beacon:20,archive:20};
+      let run=prepare?createRun(save.profile,input.chapter*2+1,input.weapon,'normal',input.seed):validateSave({...save,version:input.saveVersion,run:input.run}).run;
       const rooms=[];let evolutionRoom=null;
       for(let room=run.room;room<(prepare?6:7);room++){
         const host=document.createElement('div');host.style.cssText='width:390px;height:660px';document.body.append(host);
@@ -34,15 +41,16 @@ try{
         const hurt=s.hurt.bind(s);
         s.hurt=amount=>{
           if(s.hitTimer<=0&&!s.finished&&s.phase!=='loot'&&s.phase!=='victory'){
-            damage+=Math.min(s.run.hp,amount*(1-(s.run.upgrades.ward??0)*.12));hits++;
+            const resolve=s.run.hp<=s.run.maxHp*.35?1-(s.run.upgrades.resolve??0)*.1:1;
+            damage+=Math.min(s.run.hp,amount*(1-(s.run.upgrades.ward??0)*.12)*resolve);hits++;
           }
           hurt(amount);minHp=Math.min(minHp,s.run.hp);
         };
         const shoot=s.shoot.bind(s);
-        s.shoot=(x,y,dx,dy,amount,hostile,style)=>{
+        s.shoot=(x,y,dx,dy,amount,hostile,...rest)=>{
           const boss=s.enemies.find(e=>e.type>=6&&e.hp>0);
           if(hostile&&boss&&Math.abs(boss.sprite.x-x)<.01&&Math.abs(boss.sprite.y-13-y)<.01)projectiles++;
-          shoot(x,y,dx,dy,amount,hostile,style);
+          shoot(x,y,dx,dy,amount,hostile,...rest);
         };
         for(let frame=0;frame<30*180&&!complete&&!defeat;frame++){
           const enemies=s.enemies.filter(e=>e.hp>0),near=(a,b)=>Math.hypot(a.x-s.hero.x,a.y-s.hero.y)-Math.hypot(b.x-s.hero.x,b.y-s.hero.y);
@@ -93,6 +101,7 @@ try{
       }
       return {run,rooms,evolutionRoom};
     };
+    return initialSave().version;
   });
   if(baseline){
     for(let chapter=0;chapter<3;chapter++)for(const weapon of ['staff','blade','halo'])for(const camp of [0,3,10,20])for(const seed of camp<10?[1,8,12,42]:[8]){
@@ -127,12 +136,13 @@ try{
     report.checkpoints=before.checkpoints;report.preparation=before.preparation;
   }
   for(const checkpoint of report.checkpoints){
-    const measured=await page.evaluate(input=>window.bossCheck(input),checkpoint),result=measured.rooms[0];
+    const measured=await page.evaluate(input=>window.bossCheck(input),{...checkpoint,saveVersion:before?.saveVersion??report.saveVersion}),result=measured.rooms[0];
     const {run,...label}=checkpoint;
     report.results.push({...label,difficulty:run.difficulty,...result});
     console.log(`boss ${label.chapter+1} ${label.weapon} camp=${label.camp} ${label.build} ${run.difficulty} seed=${label.seed}: ${result.complete?'clear':result.defeat?'defeat':'timeout'} ${result.bossSeconds}s damage=${result.damage}`);
   }
   const output=`artifacts/boss-${baseline?'baseline':'after'}.json`;
+  for(const file of sourceFiles)assert.equal(hash(await readFile(file)),sources[file],file+' stays unchanged during measurement');
   await writeFile(output,JSON.stringify(report,null,2));
   assert.ok(report.checkpoints.length>0,'Prepared boss checkpoints');
   assert.ok(report.results.every(r=>r.complete||r.defeat),'No encounter stalls past 180 seconds');

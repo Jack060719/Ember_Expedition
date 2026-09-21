@@ -1,0 +1,167 @@
+{
+  "target": "asset",
+  "mode": "atlas",
+  "prompt": "",
+  "role": "",
+  "input": "assets-source\\weapons\\boomerang\\raw.png",
+  "threshold": 100,
+  "edge_threshold": 150,
+  "duration": 200,
+  "rows": 1,
+  "cols": 2,
+  "cell_size": 128,
+  "fit_scale": 0.82,
+  "trim_border": 4,
+  "edge_clean_depth": 3,
+  "align": "center",
+  "shared_scale": true,
+  "scale_strategy": "fit",
+  "component_mode": "all",
+  "component_padding": 0,
+  "min_component_area": 1,
+  "edge_touch_margin": 0,
+  "frame_labels": [
+    "atlas-1",
+    "atlas-2"
+  ],
+  "frames": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "source_box": [
+        0,
+        0,
+        887,
+        887
+      ],
+      "component_mode": "all",
+      "component_count": 233,
+      "selected_component_area": null,
+      "selected_component_bbox": null,
+      "crop_bbox": [
+        51,
+        67,
+        875,
+        849
+      ],
+      "source_frame_size": [
+        879,
+        879
+      ],
+      "is_empty": false,
+      "subject_area": 171398,
+      "body_core_area": 135809,
+      "body_area_fraction": 0.17577244800625388,
+      "anchor_source": [
+        463.0,
+        458.0
+      ],
+      "source_edge_touch": false,
+      "output_edge_touch": false,
+      "edge_touch": false,
+      "output_size": [
+        102,
+        97
+      ],
+      "paste_position": [
+        13,
+        15
+      ],
+      "paste_clamped": false,
+      "aligned_bbox": [
+        18,
+        19,
+        103,
+        104
+      ],
+      "source_to_output_scale": 0.12465558194774347,
+      "bbox_scale_applied": true,
+      "scale_strategy": "fit",
+      "scale_changed": true
+    },
+    {
+      "grid": [
+        0,
+        1
+      ],
+      "source_box": [
+        887,
+        0,
+        1774,
+        887
+      ],
+      "component_mode": "all",
+      "component_count": 286,
+      "selected_component_area": null,
+      "selected_component_bbox": null,
+      "crop_bbox": [
+        11,
+        45,
+        853,
+        865
+      ],
+      "source_frame_size": [
+        879,
+        879
+      ],
+      "is_empty": false,
+      "subject_area": 185398,
+      "body_core_area": 144841,
+      "body_area_fraction": 0.1874622237235663,
+      "anchor_source": [
+        432.0,
+        455.0
+      ],
+      "source_edge_touch": false,
+      "output_edge_touch": false,
+      "edge_touch": false,
+      "output_size": [
+        104,
+        102
+      ],
+      "paste_position": [
+        12,
+        13
+      ],
+      "paste_clamped": false,
+      "aligned_bbox": [
+        21,
+        19,
+        107,
+        113
+      ],
+      "source_to_output_scale": 0.12465558194774347,
+      "bbox_scale_applied": true,
+      "scale_strategy": "fit",
+      "scale_changed": true
+    }
+  ],
+  "edge_touch_frames": [],
+  "source_edge_touch_frames": [],
+  "output_edge_touch_frames": [],
+  "empty_frames": [],
+  "paste_clamped_frames": [],
+  "qc_summary": {
+    "frame_count": 2,
+    "valid_frame_count": 2,
+    "empty_count": 0,
+    "edge_touch_count": 0,
+    "paste_clamped_count": 0,
+    "body_scale_mean": 0.4261106640339629,
+    "output_subject_height_mean": 89.5,
+    "body_scale_cv": 0.016095385431775525,
+    "anchor_x_std": 0.017633674630261664,
+    "anchor_y_std": 0.0017064846416382506,
+    "anchor_y_mean": 0.5193401592718999
+  },
+  "qc_config": {
+    "strict_qc": true,
+    "reject_edge_touch": false,
+    "allow_source_edge_touch": false,
+    "max_body_scale_cv": null,
+    "max_anchor_y_std": null,
+    "max_profile_scale_drift": null
+  }
+}

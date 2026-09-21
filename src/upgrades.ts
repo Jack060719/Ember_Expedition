@@ -9,7 +9,7 @@ export const UPGRADES = [
   { id: 'stride', name: '輕靈步伐', description: '移動速度 +12%', icon: '⌁', max: 3, color: 'green', category: 'utility' },
   { id: 'vitality', name: '餘燼之心', description: '生命上限 +20，立刻恢復 20 生命', icon: '♡', max: 4, color: 'rose', category: 'survival' },
   { id: 'reach', name: '長明', description: '攻擊範圍 +18%', icon: '◌', max: 3, color: 'blue', category: 'offense' },
-  { id: 'split', name: '分光', description: '法杖增加投射物；短劍擴大扇角；光環增加光刃', icon: '⋔', max: 3, color: 'gold', category: 'offense' },
+  { id: 'split', name: '分光', description: '法杖與飛環增加投射物；短劍擴大扇角；光環增加光刃；戰錘擴大範圍', icon: '⋔', max: 3, color: 'gold', category: 'offense' },
   { id: 'pierce', name: '穿透', description: '投射物可多穿透一名敵人；近戰傷害 +15%', icon: '↗', max: 3, color: 'blue', category: 'offense' },
   { id: 'ember', name: '灼痕', description: '擊中使敵人燃燒，每秒受到額外傷害', icon: '♨', max: 3, color: 'rose', category: 'offense' },
   { id: 'frost', name: '霜息', description: '攻擊使敵人減速，持續 1.5 秒', icon: '❄', max: 3, color: 'blue', category: 'offense' },
@@ -40,7 +40,7 @@ export function upgradeDescription(id: UpgradeId, level: number): string {
     case 'stride': return `移動速度 +${level * 12}%`;
     case 'vitality': return `生命上限 +${level * 20}，每級取得時恢復 20 生命`;
     case 'reach': return `攻擊範圍 +${level * 18}%`;
-    case 'split': return `分光等級 ${level}：依武器增加投射物、扇角或光刃`;
+    case 'split': return `分光等級 ${level}：依武器增加投射物、扇角、光刃或戰錘範圍`;
     case 'pierce': return `投射物多穿透 ${level} 名敵人；近戰傷害 +${level * 15}%`;
     case 'ember': return `擊中使敵人燃燒 2 秒，每秒額外 ${level * 8} 傷害`;
     case 'frost': return `攻擊使敵人減速 ${level * 18}%，持續 1.5 秒`;
