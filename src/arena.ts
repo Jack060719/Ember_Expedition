@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { CHAPTERS, DURATIONS, MISSIONS, applyUpgrade, encounter, experienceForLevel, hasSynergy, isEvolved, rng, upgradeChoices, type Run, type UpgradeId } from './core.ts';
 
+import { CHARACTERS } from './characters.ts';
+
 export interface ArenaHooks {
   hud: (run:Run, remaining:number, bossHp:number|null, phase:ArenaPhase, enemies:number) => void;
   upgrade: (run:Run, choose:(id:UpgradeId)=>void) => void;
@@ -41,7 +43,8 @@ export class Arena extends Phaser.Scene {
   preload(){
     const chapter=CHAPTERS[MISSIONS[this.run.mission].chapter];
     this.load.image('ground',`/assets/${chapter.asset}.jpg`);
-    this.load.spritesheet('hero','/assets/hero.png',{frameWidth:128,frameHeight:128});
+    const character=CHARACTERS[this.run.character];
+    this.load.spritesheet(character.textureKey,character.spritePath,{frameWidth:128,frameHeight:128});
     this.load.spritesheet('enemies','/assets/enemies.png',{frameWidth:128,frameHeight:128});
     this.load.spritesheet('props','/assets/props.png',{frameWidth:128,frameHeight:128});
   }
@@ -50,9 +53,10 @@ export class Arena extends Phaser.Scene {
     this.add.rectangle(195,330,390,660,0x081923,.14);
     this.effects=this.add.graphics().setDepth(800);
     this.shadow=this.add.ellipse(MAP.spawn.x,MAP.spawn.y+8,28,12,0x06151a,.4);
-    this.hero=this.add.sprite(MAP.spawn.x,MAP.spawn.y,'hero',0).setDisplaySize(67,67).setOrigin(.5,.82);
+    const character=CHARACTERS[this.run.character];
+    this.hero=this.add.sprite(MAP.spawn.x,MAP.spawn.y,character.textureKey,0).setDisplaySize(67,67).setOrigin(.5,.82);
     this.joystick=this.add.graphics().setDepth(1000);
-    for(let d=0;d<4;d++) if(!this.anims.exists(`walk${d}`)) this.anims.create({key:`walk${d}`,frames:this.anims.generateFrameNumbers('hero',{start:d*4,end:d*4+3}),frameRate:8,repeat:-1});
+    for(let d=0;d<4;d++) if(!this.anims.exists(`${character.animationPrefix}${d}`)) this.anims.create({key:`${character.animationPrefix}${d}`,frames:this.anims.generateFrameNumbers(character.textureKey,{start:d*4,end:d*4+3}),frameRate:8,repeat:-1});
     for(const p of MAP.props)this.add.image(p.x,p.y,'props',p.frame).setOrigin(.5,.85).setDisplaySize(p.w,p.h).setDepth(p.sortY);
     if(this.isBoss())this.spawnEnemy(6+this.chapter(),195,130);
     this.input.on('pointerdown',(p:Phaser.Input.Pointer)=>{if(!this.pointer)this.pointer={input:p,x:p.x,y:p.y};});
@@ -192,7 +196,7 @@ export class Arena extends Phaser.Scene {
       const b=MAP.walkBounds;x=Phaser.Math.Clamp(x,b.left,b.right);y=Phaser.Math.Clamp(y,b.top,b.bottom);
       for(const q of MAP.blockers){const dist=Math.hypot(x-q.x,y-q.y),radius=q.r+10;if(dist<radius){x=q.x+(x-q.x)/(dist||1)*radius;y=q.y+(y-q.y)/(dist||1)*radius;}}
       this.hero.setPosition(x,y);this.direction=Math.abs(dx)>Math.abs(dy)?(dx<0?1:2):(dy<0?3:0);
-      this.hero.play(`walk${this.direction}`,true);
+      this.hero.play(`${CHARACTERS[this.run.character].animationPrefix}${this.direction}`,true);
     }else{this.hero.stop();this.hero.setFrame(this.direction*4);}
     this.hero.setDepth(this.hero.y);this.shadow.setPosition(this.hero.x,this.hero.y+3).setDepth(this.hero.y-1);
   }
