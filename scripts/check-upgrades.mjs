@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 // Run after TASK-003 integrates the effects, using this worktree's port 5173 server.
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
 try{
   await page.goto('http://localhost:5173/');
   const sources={};
@@ -125,7 +126,7 @@ try{
       try{
         const foe=enemy(t,60);advance(t,1.1);
         const clock=t.s.clock,remaining=t.s.pendingMeteor.remaining,hp=foe.hp;
-        t.s.pause();t.arena.game.loop.start();await new Promise(resolve=>setTimeout(resolve,350));t.arena.game.loop.stop();
+        t.s.pause();t.arena.game.loop.start(t.arena.game.step.bind(t.arena.game));await new Promise(resolve=>setTimeout(resolve,350));t.arena.game.loop.stop();
         check('actual Phaser pause freezes the meteor and room clock',t.s.clock===clock&&t.s.pendingMeteor.remaining===remaining&&foe.hp===hp);
         t.s.resume();advance(t,.4);check('resume completes the held meteor without background catch-up',near(foe.hp,hp-32.4));
       }finally{t.close();}
@@ -137,7 +138,7 @@ try{
         t.s.hit(foe,100000);t.s.changePhase('loot');t.s.run.xp=1000;
         check('loot cancels pending offensive effects immediately',t.s.pendingMeteor===null&&!sprite.active);
         const heldClock=t.s.clock,heldXp=t.s.run.xp,heldDrop=t.s.drops[0].sprite.x;
-        t.s.pause();t.arena.game.loop.start();await new Promise(resolve=>setTimeout(resolve,350));t.arena.game.loop.stop();
+        t.s.pause();t.arena.game.loop.start(t.arena.game.step.bind(t.arena.game));await new Promise(resolve=>setTimeout(resolve,350));t.arena.game.loop.stop();
         check('manual pause during loot freezes absorption, upgrades and settlement',t.s.clock===heldClock&&t.s.run.xp===heldXp&&t.s.drops[0].sprite.x===heldDrop&&t.events.upgrades===0&&t.events.complete===0);
         t.s.resume();
         advance(t,.01);const clock=t.s.clock;
@@ -155,6 +156,7 @@ try{
     return results;
   });
   await mkdir('artifacts',{recursive:true});
+  assert.deepEqual(errors,[]);
   await writeFile('artifacts/upgrades-report.json',JSON.stringify({sources,passed:results,limitations:['Chromium mobile emulation does not verify iPhone hardware.']},null,2));
   console.log(`PASS ${results.length} upgrade scene checks`);
 }finally{await browser.close();}
