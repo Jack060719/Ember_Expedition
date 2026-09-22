@@ -1,5 +1,7 @@
 # TASK-002 角色分支交接
 
+2026-09-22 整合註記：使用者已核准合併 main，三項功能均已接入。以下保留分支交付時的紀錄；最新驗證、平衡待辦與發布狀態以 [STATUS.md](STATUS.md) 為準。
+
 更新：2026-09-21。負責者：Codex；工作樹 `C:/Users/User/orca/workspaces/nowifi/task-002-characters`，分支 `Jack060719/task-002-characters`，基準 `aa4196079664bdcc715395b3b21e9b1063f9b176`。
 
 狀態：本分支已完成角色功能，並接入 TASK-003 的完整武器／場景與 TASK-004 的能力模組及效果，待 main 整合與 TASK-005 平衡試玩。`STATUS.md` 與產品文件由 main 整合者統一更新，本檔不代表 main 或正式站已取得這些功能。

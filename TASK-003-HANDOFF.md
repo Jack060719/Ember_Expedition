@@ -1,5 +1,7 @@
 # TASK-003 武器與完整場景交接
 
+2026-09-22 整合註記：使用者已核准合併 main，三項功能均已接入。以下保留分支交付時的紀錄；最新驗證、平衡待辦與發布狀態以 [STATUS.md](STATUS.md) 為準。
+
 更新：2026-09-21。負責者：Codex；工作樹 `C:/Users/User/orca/workspaces/nowifi/task-003-weapons`，分支 `Jack060719/task-003-weapons`，基準 `aa4196079664bdcc715395b3b21e9b1063f9b176`。
 
 狀態：飛環／戰錘、TASK-002 角色場景及 TASK-004 三項新能力效果已實作；本樹另已接入正式角色 UI、存檔與共用說明。機制與整合回歸通過，固定策略完整遠征仍有死亡與未成型案例，待 main 整合及 TASK-005 平衡試玩。未部署；`STATUS.md`、`ROADMAP.md` 由 main 整合者統一更新。
