@@ -2,13 +2,15 @@ import { chromium, devices } from '@playwright/test';
 import { createServer } from 'vite';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
+const testPort=Number(process.argv.find(a=>a.startsWith('--port='))?.split('=')[1]??4180);
+assert.ok([5173,4180].includes(testPort));
 const android=process.argv.includes('--android');
-const server=android?await createServer({server:{host:'127.0.0.1',port:4180,strictPort:true}}):null;
+const server=android?await createServer({server:{host:'127.0.0.1',port:testPort,strictPort:true}}):null;
 await server?.listen();
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage(android?devices['Pixel 5']:{viewport:{width:430,height:840},isMobile:true,hasTouch:true});
 try{
-  await page.goto(android?'http://127.0.0.1:4180':'http://localhost:5173/');
+  await page.goto(android?`http://127.0.0.1:${testPort}`:'http://localhost:5173/');
   const result=await page.evaluate(async()=>{
     const {mountArena}=await import('/src/arena.ts');
     const {initialSave,createRun,upgradeChoices,UPGRADES}=await import('/src/core.ts');

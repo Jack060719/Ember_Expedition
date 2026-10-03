@@ -168,7 +168,7 @@ test('an explicit legacy v2 build preserves its abilities and health without gai
     growth:{damage:.16,experience:.09,embers:.09},secondWindUsed:true,
   }};
   const restored=validateSave(legacy);
-  assert.deepEqual(restored.profile,legacy.profile);
+  assert.deepEqual(restored.profile,{...legacy.profile,ownedPets:[],petSlots:1,equippedPets:[]});
   assert.deepEqual(restored.run!.upgrades,legacy.run.upgrades);
   assert.equal(restored.run!.hp,63);assert.equal(restored.run!.maxHp,180);
   assert.equal(restored.run!.secondWindUsed,true);

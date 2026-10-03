@@ -5,9 +5,11 @@ import assert from 'node:assert/strict';
 import { initialSave, createRun, UPGRADES, ROOMS, experienceForLevel } from '../src/core.ts';
 
 await mkdir('artifacts',{recursive:true});
+const testPort=Number(process.argv.find(a=>a.startsWith('--port='))?.split('=')[1]??4180);
+assert.ok([5173,4180].includes(testPort));
 const android=process.argv.includes('--android');
-const server=android?await preview({preview:{host:'127.0.0.1',port:4180,strictPort:true}}):null;
-const origin=android?'http://127.0.0.1:4180':'http://localhost:4173';
+const server=android?await preview({preview:{host:'127.0.0.1',port:testPort,strictPort:true}}):null;
+const origin=android?`http://127.0.0.1:${testPort}`:'http://localhost:4173';
 const browser=await chromium.launch({headless:true});
 const errors=[];
 const context=await browser.newContext(android?devices['Pixel 5']:{viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1});
@@ -66,7 +68,7 @@ try {
   const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;
   await download.saveAs('artifacts/save-export.json');
   const exported=JSON.parse(await readFile('artifacts/save-export.json','utf8'));
-  assert.equal(exported.version,3);assert.equal(exported.run.character,'keeper');assert.equal(exported.settings.preferredCharacter,'keeper');
+  assert.equal(exported.version,5);assert.equal(exported.run.character,'keeper');assert.equal(exported.settings.preferredCharacter,'keeper');
   await page.locator('#import-file').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"version":99}')});
   await expect(page.locator('.toast')).toContainText('格式或版本');
   await page.locator('#close').click();await expect(page.locator('#resume')).toBeVisible();
@@ -86,7 +88,7 @@ try {
   const migratedDownload=page.waitForEvent('download');await page.locator('#export').click();
   await (await migratedDownload).saveAs('artifacts/save-v3-migrated.json');
   const migrated=JSON.parse(await readFile('artifacts/save-v3-migrated.json','utf8'));
-  assert.deepEqual(migrated,{...oldV2,version:3,settings:{...oldV2.settings,preferredCharacter:'keeper'},run:{...oldV2.run,character:'keeper'}});
+  assert.deepEqual(migrated,{...oldV2,version:5,profile:{...oldV2.profile,ownedPets:[],petSlots:1,equippedPets:[]},settings:{...oldV2.settings,preferredCharacter:'keeper'},run:{...oldV2.run,character:'keeper',pets:[],petEncounter:{room:oldV2.run.room,pet:null,state:'none'}}});
   await page.locator('#close').click();
   const characterSave=initialSave();characterSave.profile.cleared=2;characterSave.settings.preferredCharacter='scout';
   characterSave.run=createRun(characterSave.profile,0,'staff','normal',8,'warden');
@@ -144,7 +146,7 @@ try {
   report.push('Final chapter settlement is saved once; camp purchase persists and ending journal unlocks.');
 
   const bossSave=initialSave();bossSave.profile.cleared=5;bossSave.profile.facilities={forge:10,beacon:10,archive:3};
-  bossSave.run=createRun(bossSave.profile,5,'staff','normal',55);bossSave.run.room=6;
+  bossSave.run=createRun(bossSave.profile,5,'staff','normal',55);bossSave.run.room=6;bossSave.run.petEncounter={room:6,pet:null,state:'none'};
   for(const u of UPGRADES)bossSave.run.upgrades[u.id]=u.max;
   await page.locator('[data-tab="expedition"]').click();
   await importSave(bossSave);await page.locator('#resume').click();await page.locator('#enter-room').click();

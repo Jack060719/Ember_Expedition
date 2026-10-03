@@ -1,0 +1,11 @@
+{
+  "version": 3,
+  "profile": { "embers": 275, "cleared": 4, "facilities": { "forge": 2, "beacon": 3, "archive": 3 }, "totalKills": 91, "expeditions": 7, "bestHard": 1 },
+  "run": {
+    "id": "legacy-v3-checkpoint", "seed": 12, "mission": 0, "difficulty": "normal", "weapon": "staff", "character": "warden",
+    "room": 1, "hp": 63, "maxHp": 130, "embers": 40, "kills": 165, "elapsed": 174,
+    "upgrades": { "power": 3, "pierce": 2 }, "level": 6, "xp": 17,
+    "growth": { "damage": 0.16, "experience": 0.09, "embers": 0.09 }, "secondWindUsed": true
+  },
+  "settings": { "sound": false, "preferredCharacter": "scout" }
+}

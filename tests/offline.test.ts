@@ -5,17 +5,25 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 const source=ts.transpileModule(readFileSync(new URL('../src/offline.ts',import.meta.url),'utf8').replace('import.meta.env.PROD','true'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-function fixture(){
+function fixture(manifestUrl='https://example.test/manifest.webmanifest'){
   const worker=Object.assign(new EventTarget(),{state:'installing',postMessage(){}});
   const registration=Object.assign(new EventTarget(),{installing:worker as typeof worker|null,active:null as typeof worker|null,waiting:null as typeof worker|null,update:async()=>{}});
-  const serviceWorker=Object.assign(new EventTarget(),{register:async()=>registration,getRegistration:async()=>registration,ready:new Promise(()=>{})});
+  let registerCall:any, lookupScope:string|undefined;
+  const serviceWorker=Object.assign(new EventTarget(),{register:async(...args:any[])=>{registerCall=args;return registration;},getRegistration:async(scope:string)=>{lookupScope=scope;return registration;},ready:new Promise(()=>{})});
   let response={status:200,redirected:false,headers:{get:()=> 'text/javascript'}};
   const timers=new Map<number,()=>void>();let id=0,state:any;
-  const context=vm.createContext({exports:{},navigator:{serviceWorker},AbortSignal,fetch:async()=>response,setTimeout(callback:()=>void){timers.set(++id,callback);return id;},clearTimeout(key:number){timers.delete(key);}});
+  const context=vm.createContext({exports:{},navigator:{serviceWorker},document:{querySelector:()=>({href:manifestUrl})},AbortSignal,URL,fetch:async()=>response,setTimeout(callback:()=>void){timers.set(++id,callback);return id;},clearTimeout(key:number){timers.delete(key);}});
   vm.runInContext(source,context);
   context.exports.watchOffline((next:any)=>{state=next;});
-  return {api:context.exports,worker,registration,serviceWorker,context,timers,setResponse(next:typeof response){response=next;},message(data:object){serviceWorker.dispatchEvent(Object.assign(new Event('message'),{data}));},get state(){return state;}};
+  return {api:context.exports,worker,registration,serviceWorker,context,timers,setResponse(next:typeof response){response=next;},message(data:object){serviceWorker.dispatchEvent(Object.assign(new Event('message'),{data}));},get registerCall(){return registerCall;},get lookupScope(){return lookupScope;},get state(){return state;}};
 }
+test('GitHub Pages repository paths scope the service worker under the project directory',async()=>{
+  const f=fixture('https://example.test/ember-expedition/manifest.webmanifest');await f.api.prepareOffline();
+  assert.equal(f.lookupScope,'/ember-expedition/');
+  assert.equal(f.registerCall[0],'/ember-expedition/sw.js');
+  assert.equal(f.registerCall[1].scope,'/ember-expedition/');
+  assert.equal(f.registerCall[1].updateViaCache,'none');
+});
 test('an already installing worker reports failure instead of waiting for ready forever',{timeout:1000},async()=>{
   const f=fixture();await f.api.prepareOffline();
   f.worker.state='redundant';f.worker.dispatchEvent(new Event('statechange'));

@@ -4,6 +4,7 @@ let listener:(s:OfflineState)=>void=()=>{};
 let registration:ServiceWorkerRegistration|undefined;
 let timeout:ReturnType<typeof setTimeout>|undefined, listening=false, repairing=false;
 const watchedWorkers=new WeakSet<ServiceWorker>(), watchedRegistrations=new WeakSet<ServiceWorkerRegistration>();
+const baseUrl=typeof document==='undefined'?'/':new URL('.',document.querySelector<HTMLLinkElement>('link[rel="manifest"]')!.href).pathname;
 const send=(next:Partial<OfflineState>)=>{state={...state,...next};if(!state.working)clearTimeout(timeout);listener(state);};
 function downloading(message:string){
   clearTimeout(timeout);send({working:true,message,detail:undefined,authRequired:false});
@@ -14,7 +15,7 @@ async function updateFailed(error:unknown){
   let authRequired=false;
   try{
     // Worker registration errors do not expose an HTTP status consistently across browsers.
-    const response=await fetch('/sw.js',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(5000)});
+    const response=await fetch(`${baseUrl}sw.js`,{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(5000)});
     authRequired=response.status===401||response.status===403||response.redirected||!!response.headers.get('content-type')?.includes('text/html');
   }catch{/* Being offline does not mean the login expired. */}
   send({working:false,authRequired,message:authRequired?(state.ready?'已可離線遊玩 · 請重新登入以更新':'請重新登入以下載離線內容'):(state.ready?'已可離線遊玩 · 無法檢查更新':'無法啟用離線下載'),detail:authRequired?'請登入原本用來遊玩的帳號，完成後會回到遊戲。':(error as Error).message});
@@ -52,8 +53,8 @@ export async function prepareOffline(){
     navigator.serviceWorker.addEventListener('controllerchange',check);
   }
   try{
-    registration=await navigator.serviceWorker.getRegistration('/');check();
-    registration=await navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'});
+    registration=await navigator.serviceWorker.getRegistration(baseUrl);check();
+    registration=await navigator.serviceWorker.register(`${baseUrl}sw.js`,{scope:baseUrl,updateViaCache:'none'});
     if(!watchedRegistrations.has(registration)){
       watchedRegistrations.add(registration);
       registration.addEventListener('updatefound',()=>watchWorker(registration!.installing));

@@ -1,8 +1,15 @@
 import Phaser from 'phaser';
-import { CHAPTERS, DURATIONS, MISSIONS, applyUpgrade, encounter, experienceForLevel, hasSynergy, isEvolved, rng, upgradeChoices, type Run, type UpgradeId } from './core.ts';
+import { assetPath } from './asset-path.ts';
+import { CHAPTERS, DURATIONS, MISSIONS, applyUpgrade, bossType, encounter, experienceForLevel, hasSynergy, isEvolved, rng, upgradeChoices, type Run, type UpgradeId } from './core.ts';
 import { WEAPONS, weaponDamage, skillDamage, weaponRange, weaponCooldown } from './weapons.ts';
 import { CHARACTERS } from './characters.ts';
 import { meteorStats, cullMultiplier, resolveMultiplier } from './ability-effects.ts';
+import { ENEMIES, isBossEnemy, enemyHealth, enemyDamage } from './enemies.ts';
+import { finalBossPhase, planChapterAttack, dangerPhase, containsDanger, type ChapterAttack, type DangerArea } from './chapter-attacks.ts';
+import { PETS, PET_IDS, TAME_RADIUS, tameProgress, type PetId } from './pets.ts';
+import { PetParty, FLYING_PETS } from './pet-arena.ts';
+import { attackEffect, dangerEffect, drawAttackEffect, drawAttackProjectile, type AttackEffect } from './attack-effects.ts';
+import { ATTACK_RELEASE, ATTACK_RECOVERY, attackFrame, chapterAttackFrame, playerMoveSpeed, petMoveSpeed } from './creature-motion.ts';
 
 export interface ArenaHooks {
   hud: (run:Run, remaining:number, bossHp:number|null, phase:ArenaPhase, enemies:number) => void;
@@ -10,10 +17,12 @@ export interface ArenaHooks {
   complete: (run:Run) => void;
   defeat: (run:Run) => void;
   paused: () => void;
+  tame?: (pet:PetId,accept:(pets:PetId[])=>void) => void;
+  taming?: (pet:PetId|null,seconds:number,inside:boolean) => void;
 }
-export type ArenaPhase = 'fighting'|'finalWave'|'clearing'|'loot'|'victory';
+export type ArenaPhase = 'fighting'|'finalWave'|'clearing'|'loot'|'taming'|'victory';
 interface BossState { action:'charge'|'eruption'|'ring'|'fan'; turn:number; followup:boolean; recovery:number; distance:number; enraged:boolean; }
-interface Enemy { id:number; sprite:Phaser.GameObjects.Sprite; shadow:Phaser.GameObjects.Ellipse; hp:number; max:number; type:number; radius:number; speed:number; attack:number; windup:number; charge:number; dx:number; dy:number; burn:number; slow:number; flash:number; orbitHit:number; size:number; boss?:BossState; }
+interface Enemy { id:number; sprite:Phaser.GameObjects.Sprite; shadow:Phaser.GameObjects.Ellipse; hp:number; max:number; type:number; radius:number; speed:number; attack:number; windup:number; charge:number; dx:number; dy:number; burn:number; slow:number; flash:number; orbitHit:number; size:number; boss?:BossState; attackTurn:number; summoned:number; rally:number; motion:number; attackPose:number; threat?:{plan:ChapterAttack;elapsed:number}; }
 interface Shot { sprite:Phaser.GameObjects.Image|Phaser.GameObjects.Arc; x:number;y:number;dx:number;dy:number;damage:number;life:number;hostile:boolean;pierce:number;hit:Set<number>; style:'fire'|'wave'|'stone'|'spell'|'boomerang'; flight?:{remaining:number;returning:boolean;evolved:boolean}; }
 interface HammerStrike {x:number;y:number;damage:number;radius:number;remaining:number;evolved:boolean;secondary:boolean;sprite:Phaser.GameObjects.Image|null;}
 interface MeteorStrike {x:number;y:number;damage:number;radius:number;remaining:number;sprite:Phaser.GameObjects.Image;}
@@ -32,6 +41,7 @@ export class Arena extends Phaser.Scene {
   private effects!:Phaser.GameObjects.Graphics;
   private joystick!:Phaser.GameObjects.Graphics;
   private visuals:Visual[]=[];
+  private enemyEffects:AttackEffect[]=[];
   private explosions:{x:number;y:number;damage:number}[]=[];
   private pendingHammer:HammerStrike|null=null;
   private pendingMeteor:MeteorStrike|null=null;
@@ -42,19 +52,26 @@ export class Arena extends Phaser.Scene {
   private direction=0; private moving=false; private finished=false; private choosing=false; private nextId=0;
   private keys?:Record<string,Phaser.Input.Keyboard.Key>;
   private orbiters:Phaser.GameObjects.Image[]=[];
+  private petParty!:PetParty<Enemy>;
+  private wildPet?:Phaser.GameObjects.Image;
+  private tameRing?:Phaser.GameObjects.Graphics;
+  private tameSeconds=0;private savingPet=false;private paused=false;
   constructor(run:Run,hooks:ArenaHooks){
     super('arena'); this.run=structuredClone(run);this.hooks=hooks;
     this.random=rng(run.seed+run.room*1259);this.elapsedStart=run.elapsed;
   }
   preload(){
     const chapter=CHAPTERS[MISSIONS[this.run.mission].chapter];
-    this.load.image('ground',`/assets/${chapter.asset}.jpg`);
+    this.load.image('ground',assetPath(`/assets/${chapter.asset}.jpg`));
     const character=CHARACTERS[this.run.character];
     this.load.spritesheet(character.textureKey,character.spritePath,{frameWidth:128,frameHeight:128});
-    this.load.spritesheet('enemies','/assets/enemies.png',{frameWidth:128,frameHeight:128});
-    this.load.spritesheet('props','/assets/props.png',{frameWidth:128,frameHeight:128});
-    if(this.run.weapon==='boomerang'||this.run.weapon==='hammer')this.load.spritesheet(this.run.weapon,`/assets/weapons/${this.run.weapon}.png`,{frameWidth:128,frameHeight:128});
-    this.load.image('meteor','/assets/upgrades/meteor.png');
+    this.load.spritesheet('enemies',assetPath('/assets/animated/enemies.png'),{frameWidth:128,frameHeight:128});
+    if(this.chapter()>=3)this.load.spritesheet('enemies-mainline-1',assetPath('/assets/animated/enemies-mainline-1.png'),{frameWidth:128,frameHeight:128});
+    for(let batch=2;batch<=Math.min(4,1+Math.floor((this.chapter()-3)/4));batch++)this.load.spritesheet(`enemies-mainline-${batch}`,assetPath(`/assets/animated/enemies-mainline-${batch}.png`),{frameWidth:128,frameHeight:128});
+    this.load.spritesheet('props',assetPath('/assets/props.png'),{frameWidth:128,frameHeight:128});
+    if(this.run.weapon==='boomerang'||this.run.weapon==='hammer')this.load.spritesheet(this.run.weapon,assetPath(`/assets/weapons/${this.run.weapon}.png`),{frameWidth:128,frameHeight:128});
+    this.load.image('meteor',assetPath('/assets/upgrades/meteor.png'));
+    for(const id of PET_IDS)this.load.spritesheet(`pet-${id}`,assetPath(`/assets/pets/animated/${id}.png`),{frameWidth:128,frameHeight:128});
   }
   create(){
     this.add.image(195,330,'ground').setDisplaySize(440,700).setAlpha(.88);
@@ -64,9 +81,15 @@ export class Arena extends Phaser.Scene {
     const character=CHARACTERS[this.run.character];
     this.hero=this.add.sprite(MAP.spawn.x,MAP.spawn.y,character.textureKey,0).setDisplaySize(67,67).setOrigin(.5,.82);
     this.joystick=this.add.graphics().setDepth(1000);
+    this.petParty=new PetParty(this,this.hero,(enemy,damage)=>this.hitPet(enemy,damage),()=>petMoveSpeed(this.level('stride')));this.petParty.sync(this.run.pets);
+    if(this.run.petEncounter?.state==='available'){
+      this.wildPet=this.add.image(195,330,`pet-${this.run.petEncounter.pet}`,0).setDisplaySize(54,54).setOrigin(.5,.82).setDepth(330);
+      this.tameRing=this.add.graphics().setDepth(2);
+      this.drawTaming();
+    }
     for(let d=0;d<4;d++) if(!this.anims.exists(`${character.animationPrefix}${d}`)) this.anims.create({key:`${character.animationPrefix}${d}`,frames:this.anims.generateFrameNumbers(character.textureKey,{start:d*4,end:d*4+3}),frameRate:8,repeat:-1});
     for(const p of MAP.props)this.add.image(p.x,p.y,'props',p.frame).setOrigin(.5,.85).setDisplaySize(p.w,p.h).setDepth(p.sortY);
-    if(this.isBoss())this.spawnEnemy(6+this.chapter(),195,130);
+    if(this.isBoss())this.spawnEnemy(bossType(this.chapter()),195,130);
     this.input.on('pointerdown',(p:Phaser.Input.Pointer)=>{if(!this.pointer)this.pointer={input:p,x:p.x,y:p.y};});
     const release=(p:Phaser.Input.Pointer)=>{if(this.pointer?.input===p)this.pointer=null;};
     this.input.on('pointerup',release);
@@ -74,15 +97,15 @@ export class Arena extends Phaser.Scene {
     this.input.on('gameout',()=>{this.pointer=null;this.joystick.clear();});
     this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as Record<string,Phaser.Input.Keyboard.Key>;
     this.game.canvas.addEventListener('contextmenu',e=>e.preventDefault());
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>this.clearAttacks());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{this.clearAttacks();this.petParty.destroy();});
     this.emitHud();
   }
   private chapter(){return MISSIONS[this.run.mission].chapter;}
   private isBoss(){return this.run.room===6&&this.run.mission%2===1;}
   private duration(){return DURATIONS[this.run.room];}
   private level(id:UpgradeId){return this.run.upgrades[id]??0;}
-  pause(){this.pointer=null;this.joystick?.clear();if(this.scene.isActive())this.scene.pause();}
-  resume(){if(!this.finished){this.pointer=null;this.scene.resume();}}
+  pause(){this.paused=true;this.pointer=null;this.joystick?.clear();if(this.scene.isActive())this.scene.pause();}
+  resume(){if(!this.finished&&!this.savingPet){this.paused=false;this.pointer=null;this.scene.resume();}}
   getRun(){return structuredClone(this.run);}
   private damage(){return weaponDamage(this.run);}
   private range(){return weaponRange(this.run,isEvolved(this.run));}
@@ -93,38 +116,43 @@ export class Arena extends Phaser.Scene {
       if(Math.hypot(x-this.hero.x,y-this.hero.y)<150){x=390-x;y=660-y;}
     }
     y??=90;
-    const boss=type>=6, stage=this.chapter(), hard=this.run.difficulty==='hard';
-    const hp=boss?[4500,6500,7000][stage]:[14,10,28,35,22,65][type]*1.2*(1+stage*.28+this.run.room*.08);
-    const size=boss?142:type===5?57:43;
-    const sprite=this.add.sprite(x,y,'enemies',type).setDisplaySize(size,size).setOrigin(.5,.78).setDepth(y);
+    const definition=ENEMIES[type],boss=definition.boss,hard=this.run.difficulty==='hard';
+    const hp=enemyHealth(type,this.chapter(),this.run.room,hard),size=definition.size;
+    const sprite=this.add.sprite(x,y,definition.texture,definition.frame*8).setDisplaySize(size,size).setOrigin(.5,.78).setDepth(y);
     const shadow=this.add.ellipse(x,y+3,boss?67:23,boss?25:10,0x041419,.45).setDepth(y-1);
-    this.enemies.push({id:this.nextId++,sprite,shadow,hp:hp*(hard?1.35:1),max:hp*(hard?1.35:1),type,radius:boss?38:type===5?17:12,speed:boss?[34,24,36][stage]:[34,47,37,22,32,26][type]*(hard?1.1:1),attack:1.3+this.random()*2,windup:0,charge:0,dx:0,dy:0,burn:0,slow:0,flash:0,orbitHit:0,size,boss:boss?{action:'charge',turn:0,followup:false,recovery:0,distance:0,enraged:false}:undefined});
+    this.enemies.push({id:this.nextId++,sprite,shadow,hp,max:hp,type,radius:definition.radius,speed:definition.speed*(!boss&&hard?1.1:1),attack:1.3+this.random()*2,windup:0,charge:0,dx:0,dy:0,burn:0,slow:0,flash:0,orbitHit:0,size,attackTurn:0,summoned:0,rally:0,motion:this.nextId*.17,attackPose:0,boss:boss?{action:'charge',turn:0,followup:false,recovery:0,distance:0,enraged:false}:undefined});
   }
-  private hit(enemy:Enemy,damage:number,secondary=false){
+  private hitPet(enemy:Enemy,damage:number){this.hit(enemy,damage,false,true);}
+  private hit(enemy:Enemy,damage:number,secondary=false,pet=false){
     if(enemy.hp<=0)return;
-    damage*=cullMultiplier(this.run.upgrades,enemy.hp,enemy.max,secondary);
-    if(!secondary&&this.random()<this.level('focus')*.12)damage*=2;
+    const behavior=ENEMIES[enemy.type].behavior;
+    if(!pet&&enemy.threat&&(behavior==='shield'||behavior==='mirror-shield')){
+      const facing=enemy.threat.plan.areas[0].shape;
+      if(facing.kind==='fan'&&Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(this.hero.y-enemy.sprite.y,this.hero.x-enemy.sprite.x)-facing.angle))<Math.PI/2)damage*=.45;
+    }
+    if(!pet)damage*=cullMultiplier(this.run.upgrades,enemy.hp,enemy.max,secondary);
+    if(!pet&&!secondary&&this.random()<this.level('focus')*.12)damage*=2;
     enemy.hp-=damage;
     if(!secondary){
-      enemy.flash=.1;enemy.sprite.setTintFill(0xffe7ad);
-      if(this.level('ember'))enemy.burn=2;
-      if(this.level('frost'))enemy.slow=Math.max(enemy.slow,1.5);
+      enemy.flash=.1;enemy.sprite.setTint(0xffe7ad);
+      if(!pet&&this.level('ember'))enemy.burn=2;
+      if(!pet&&this.level('frost'))enemy.slow=Math.max(enemy.slow,1.5);
       this.addVisual('burst',enemy.sprite.x,enemy.sprite.y-12,12,0xffd68c);
     }
     if(enemy.hp<=0){
       const {x,y}=enemy.sprite;
-      if(enemy.burn>0&&hasSynergy(this.run,'wildfire'))this.explosions.push({x,y,damage:skillDamage(this.run)*.8});
-      this.addVisual('burst',x,y-10,enemy.type>=6?85:25,enemy.burn>0?0xff9c50:0xadd9b3);
+      if(!pet&&enemy.burn>0&&hasSynergy(this.run,'wildfire'))this.explosions.push({x,y,damage:skillDamage(this.run)*.8});
+      this.addVisual('burst',x,y-10,isBossEnemy(enemy.type)?85:25,enemy.burn>0?0xff9c50:0xadd9b3);
       enemy.sprite.destroy();enemy.shadow.destroy();this.run.kills++;
       if(this.run.kills%12===0)this.run.embers+=Math.round(1+this.run.growth.embers);
-      const value=(enemy.type>=6?30:enemy.type>=5?4:1)*(1+this.run.growth.experience);
+      const value=ENEMIES[enemy.type].experience*(1+this.run.growth.experience);
       if(this.drops.length>=180)this.drops[this.drops.length-1].value+=value;
-      else this.drops.push({sprite:this.add.image(x,y,'props',8).setDisplaySize(enemy.type>=6?27:13,enemy.type>=6?27:13).setDepth(3),value});
+      else this.drops.push({sprite:this.add.image(x,y,'props',8).setDisplaySize(isBossEnemy(enemy.type)?27:13,isBossEnemy(enemy.type)?27:13).setDepth(3),value});
       if(this.random()<.025)this.run.hp=Math.min(this.run.maxHp,this.run.hp+4);
     }
   }
   private hurt(amount:number){
-    if(this.hitTimer>0||this.finished||this.phase==='loot'||this.phase==='victory')return;
+    if(this.hitTimer>0||this.finished||this.phase==='loot'||this.phase==='taming'||this.phase==='victory')return;
     this.hitTimer=.8;this.run.hp=Math.max(0,this.run.hp-amount*(1-this.level('ward')*.12)*resolveMultiplier(this.run.upgrades,this.run.hp,this.run.maxHp));
     this.hero.setTint(0xff8b83);
     if(this.run.hp<=0){
@@ -172,7 +200,13 @@ export class Arena extends Phaser.Scene {
     if(kind==='slash')visual.sprite=this.add.image(x,y,'props',5).setTint(color).setDepth(805);
     this.visuals.push(visual);return visual;
   }
+  private addEnemyEffect(effect:AttackEffect){
+    if(this.enemyEffects.length>=100)this.enemyEffects.shift();
+    this.enemyEffects.push(effect);
+  }
   private drawVisuals(dt:number){
+    for(const e of this.enemyEffects){e.life-=dt;drawAttackEffect(this.effects,e);}
+    this.enemyEffects=this.enemyEffects.filter(e=>e.life>0);
     for(const v of this.visuals){
       v.life-=dt;const progress=1-Math.max(0,v.life)/v.duration,alpha=1-progress;
       if(v.life<=0){v.sprite?.destroy();continue;}
@@ -210,7 +244,7 @@ export class Arena extends Phaser.Scene {
     if(this.keys){dx+=(this.keys.D.isDown||this.keys.RIGHT.isDown?1:0)-(this.keys.A.isDown||this.keys.LEFT.isDown?1:0);dy+=(this.keys.S.isDown||this.keys.DOWN.isDown?1:0)-(this.keys.W.isDown||this.keys.UP.isDown?1:0);}
     const len=Math.hypot(dx,dy);this.moving=len>0;
     if(len){
-      const speed=128*(1+this.level('stride')*.12),scale=Math.max(1,len);let x=this.hero.x+dx/scale*speed*dt,y=this.hero.y+dy/scale*speed*dt;
+      const speed=playerMoveSpeed(this.level('stride')),scale=Math.max(1,len);let x=this.hero.x+dx/scale*speed*dt,y=this.hero.y+dy/scale*speed*dt;
       const b=MAP.walkBounds;x=Phaser.Math.Clamp(x,b.left,b.right);y=Phaser.Math.Clamp(y,b.top,b.bottom);
       for(const q of MAP.blockers){const dist=Math.hypot(x-q.x,y-q.y),radius=q.r+10;if(dist<radius){x=q.x+(x-q.x)/(dist||1)*radius;y=q.y+(y-q.y)/(dist||1)*radius;}}
       this.hero.setPosition(x,y);this.direction=Math.abs(dx)>Math.abs(dy)?(dx<0?1:2):(dy<0?3:0);
@@ -262,7 +296,7 @@ export class Arena extends Phaser.Scene {
     if(b.action==='charge')e.charge=b.distance/235;
     else{
       if(b.action==='eruption'){
-        this.addVisual('ring',e.dx,e.dy,56,0xffbc87);
+        this.addEnemyEffect(attackEffect('wave',e.dx,e.dy,56,0xffbc87));
         if(Math.hypot(this.hero.x-e.dx,this.hero.y-e.dy)<56)this.hurt(23);
       }else{
         const count=b.action==='fan'?(b.enraged?7:5):e.type===7?(b.enraged?10:8):(b.enraged?14:10);
@@ -276,17 +310,77 @@ export class Arena extends Phaser.Scene {
     }
     return still;
   }
+  private drawDanger(area:DangerArea,active:boolean){
+    const s=area.shape,g=this.effects;
+    g.fillStyle(area.color,active?.4:.18);g.lineStyle(active?4:2,area.color,.9);
+    if(s.kind==='circle'){g.fillCircle(s.x,s.y,s.radius);g.strokeCircle(s.x,s.y,s.radius);}
+    else if(s.kind==='fan'){g.beginPath();g.slice(s.x,s.y,s.radius,s.angle-s.half,s.angle+s.half,false);g.fillPath();g.strokePath();}
+    else if(s.kind==='ring'){g.lineStyle(s.width*2,area.color,active?.5:.25);g.beginPath();g.arc(s.x,s.y,s.radius,s.angle+s.half,s.angle+Math.PI*2-s.half,false);g.strokePath();}
+    else{g.lineStyle(s.radius*2,area.color,active?.5:.2);g.lineBetween(s.x,s.y,s.endX,s.endY);g.fillCircle(s.x,s.y,s.radius);g.fillCircle(s.endX,s.endY,s.radius);g.lineStyle(2,area.color,.9);g.lineBetween(s.x,s.y,s.endX,s.endY);}
+  }
+  private chapterEnemyStep(e:Enemy,dt:number):boolean{
+    if(!e.threat){
+      if(e.attack>0)return false;
+      if(!isBossEnemy(e.type)&&Math.hypot(this.hero.x-e.sprite.x,this.hero.y-e.sprite.y)>290)return false;
+      e.threat={plan:planChapterAttack(ENEMIES[e.type].behavior,e.attackTurn++,{x:e.sprite.x,y:e.sprite.y},{x:this.hero.x,y:this.hero.y},e.hp<=e.max*.5,finalBossPhase(e.hp/e.max)),elapsed:0};
+    }
+    const threat=e.threat,plan=threat.plan,previous=threat.elapsed;
+    threat.elapsed+=dt;
+    for(const area of plan.areas)if(previous<area.delay&&threat.elapsed>=area.delay){
+      e.attackPose=Math.max(0,ATTACK_RELEASE+ATTACK_RECOVERY-(threat.elapsed-area.delay));
+      if(!plan.dash||area!==plan.areas[0])this.addEnemyEffect(dangerEffect(area,ENEMIES[e.type].behavior.startsWith('bone-')));
+    }
+    if(plan.summon&&previous<plan.summon.start&&threat.elapsed>=plan.summon.start&&this.phase!=='clearing'){
+      for(const p of plan.summon.points)if(e.summoned<plan.summon.limit&&this.enemies.filter(a=>a.hp>0).length<160){this.spawnEnemy(e.summoned%2?2:0,p.x,p.y);e.summoned++;}
+    }
+    if(plan.projectiles&&previous<plan.projectiles.start&&threat.elapsed>=plan.projectiles.start){
+      const p=plan.projectiles;for(const a of p.angles)this.shoot(p.origin.x,p.origin.y-13,Math.cos(a)*p.speed,Math.sin(a)*p.speed,enemyDamage(p.damage,this.chapter())*(this.run.difficulty==='hard'?1.2:1),true);
+    }
+    if(plan.jump&&previous<plan.jump.start&&threat.elapsed>=plan.jump.start)e.sprite.setPosition(plan.jump.to.x,plan.jump.to.y);
+    if(ENEMIES[e.type].behavior==='heal'&&previous<1.1&&threat.elapsed>=1.1){
+      for(const ally of this.enemies.filter(a=>a!==e&&a.hp>0&&!isBossEnemy(a.type)&&Math.hypot(a.sprite.x-e.sprite.x,a.sprite.y-e.sprite.y)<=110).slice(0,10)){
+        ally.hp=Math.min(ally.max,ally.hp+ally.max*.12);this.addVisual('ring',ally.sprite.x,ally.sprite.y,18,0xa8df94);
+      }
+    }
+    if(ENEMIES[e.type].behavior==='rally'&&previous<1.2&&threat.elapsed>=1.2){
+      for(const ally of this.enemies.filter(a=>a!==e&&a.hp>0&&!isBossEnemy(a.type)&&Math.hypot(a.sprite.x-e.sprite.x,a.sprite.y-e.sprite.y)<=120).slice(0,10)){
+        ally.rally=3;this.addVisual('ring',ally.sprite.x,ally.sprite.y,18,0xb79ee6);
+      }
+    }
+    for(const area of plan.areas){
+      const phase=dangerPhase(area,threat.elapsed);
+      if(phase!=='expired')this.drawDanger(area,phase==='active');
+      if(area.damage>0&&(!plan.dash||area!==plan.areas[0])&&threat.elapsed>=area.delay&&previous<area.delay+area.active&&containsDanger(area.shape,this.hero))this.hurt(enemyDamage(area.damage,this.chapter())*(this.run.difficulty==='hard'?1.2:1));
+    }
+    if(plan.dash){
+      const d=plan.dash;
+      if(previous<d.start+d.duration&&threat.elapsed>=d.start+d.duration)e.attackPose=Math.max(e.attackPose,ATTACK_RECOVERY-(threat.elapsed-d.start-d.duration));
+      if(threat.elapsed>=d.start){
+        const progress=Math.min(1,(threat.elapsed-d.start)/(d.duration||1)),x=e.sprite.x,y=e.sprite.y;
+        e.sprite.setPosition(d.from.x+(d.to.x-d.from.x)*progress,d.from.y+(d.to.y-d.from.y)*progress);
+        if(previous<d.start+d.duration&&containsDanger({kind:'line',x,y,endX:e.sprite.x,endY:e.sprite.y,radius:plan.areas[0].shape.radius},this.hero))this.hurt(enemyDamage(plan.areas[0].damage,this.chapter())*(this.run.difficulty==='hard'?1.2:1));
+      }
+      if(ENEMIES[e.type].behavior==='burrow')e.sprite.setAlpha(threat.elapsed<d.start?.45:1);
+    }
+    if(threat.elapsed>=plan.duration){e.attack=plan.cooldown;e.threat=undefined;e.sprite.setAlpha(1);}
+    return true;
+  }
   private enemyStep(dt:number){
     const hard=this.run.difficulty==='hard';
     for(const e of this.enemies){
       if(e.hp<=0)continue;
+      const oldX=e.sprite.x,oldY=e.sprite.y,oldWindup=e.windup,oldCharge=e.charge;
+      const wasAttacking=e.windup>0||e.charge>0||!!e.threat||e.attackPose>0;
+      e.motion+=dt;e.attackPose=Math.max(0,e.attackPose-dt);
       let dx=this.hero.x-e.sprite.x,dy=this.hero.y-e.sprite.y,dist=Math.hypot(dx,dy)||1;
       e.flash-=dt;if(e.flash<=0)e.sprite.clearTint();
       if(e.burn>0){this.hit(e,this.level('ember')*8*dt,true);e.burn-=dt;if(e.hp<=0)continue;}
-      e.slow-=dt;e.attack-=dt;e.orbitHit-=dt;
+      e.slow-=dt;e.attack-=dt;e.orbitHit-=dt;e.rally=Math.max(0,e.rally-dt);
+      if(e.rally>0&&e.flash<=0)e.sprite.setTint(0xb79ee6);
       const slow=e.slow>0?Math.max(.3,1-this.level('frost')*.18):1;
-      let vx=dx/dist*e.speed*slow,vy=dy/dist*e.speed*slow;
-      if(e.boss){const velocity=this.bossStep(e,dt);if(velocity){vx=velocity.x;vy=velocity.y;}if(this.finished)return;}
+      let vx=dx/dist*e.speed*slow*(e.rally>0?1.25:1),vy=dy/dist*e.speed*slow*(e.rally>0?1.25:1);
+      if(e.type>=9){if(this.chapterEnemyStep(e,dt))vx=vy=0;if(this.finished)return;}
+      else if(e.boss){const velocity=this.bossStep(e,dt);if(velocity){vx=velocity.x;vy=velocity.y;}if(this.finished)return;}
       if(e.type===1){vx+=(Math.sin(this.clock*2+e.id)*18);vy+=Math.cos(this.clock*2+e.id)*18;}
       if((e.type===3||e.type===4)&&dist<155&&this.phase!=='clearing'){vx=-vx*.3;vy=-vy*.3;}
       const charger=e.type===2;
@@ -305,8 +399,8 @@ export class Arena extends Phaser.Scene {
           const angle=Math.atan2(e.dy,e.dx);
           this.effects.fillStyle(0xff9872,.15);this.effects.slice(e.sprite.x,e.sprite.y,64,angle-.9,angle+.9,false);this.effects.fillPath();
           if(e.windup<=0){
-            e.attack=1.8;this.addVisual('slash',e.sprite.x,e.sprite.y-10,64,0xff9872,angle,.9);
-            if(dist<64&&Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy,dx)-angle))<.9)this.hurt(14+this.chapter()*2);
+            e.attack=1.8;this.addEnemyEffect(attackEffect('slash',e.sprite.x,e.sprite.y,64,0xff9872,angle,.9));
+            if(dist<64&&Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy,dx)-angle))<.9)this.hurt(enemyDamage(14+Math.min(this.chapter(),2)*2,this.chapter()));
             if(this.finished)return;
           }
         }
@@ -321,16 +415,31 @@ export class Arena extends Phaser.Scene {
           const amount=e.type===4?3:1;
           for(let k=0;k<amount;k++){
             const angle=Math.atan2(e.dy-e.sprite.y,e.dx-e.sprite.x)+(k-(amount-1)/2)*.3;
-            this.shoot(e.sprite.x,e.sprite.y-13,Math.cos(angle)*(hard?127:105),Math.sin(angle)*(hard?127:105),8,true,e.type===3?'stone':'spell');
+            this.shoot(e.sprite.x,e.sprite.y-13,Math.cos(angle)*(hard?127:105),Math.sin(angle)*(hard?127:105),enemyDamage(8,this.chapter()),true,e.type===3?'stone':'spell');
           }
         }
       }
       e.sprite.x=Phaser.Math.Clamp(e.sprite.x+vx*dt,20,370);e.sprite.y=Phaser.Math.Clamp(e.sprite.y+vy*dt,60,605);
       e.sprite.setDepth(e.sprite.y);e.shadow.setPosition(e.sprite.x,e.sprite.y+3).setDepth(e.sprite.y-1);
-      const pulse=Math.sin(this.clock*(e.type===1?13:7)+e.id)*.035;
-      e.sprite.setDisplaySize(e.size*(1+pulse),e.size*(1-pulse)).setAngle(e.windup>0?Math.sin(this.clock*25)*4:0);
-      if(e.type<6&&vx)e.sprite.setFlipX(vx<0);
-      if(e.type!==5&&dist<e.radius+12)this.hurt((e.type>=6?20:7+this.chapter()*2)*(hard?1.2:1));
+      if(e.type<2&&dist<e.radius+12&&e.attack<=0){e.attackPose=ATTACK_RELEASE+ATTACK_RECOVERY;e.attack=.7;this.addEnemyEffect(attackEffect('slash',e.sprite.x,e.sprite.y,25,0xeea59a,Math.atan2(dy,dx),.7));}
+      if(oldWindup>0&&e.windup<=0){
+        e.attackPose=ATTACK_RELEASE+ATTACK_RECOVERY;
+        if(e.type===3||e.type===4||e.boss&&e.boss.action!=='charge')this.addEnemyEffect(attackEffect('wave',e.sprite.x,e.sprite.y-13,20,0xf1b48f));
+      }
+      if((e.charge>0||e.threat?.plan.dash)&&Math.hypot(e.sprite.x-oldX,e.sprite.y-oldY)>.1)drawAttackProjectile(this.effects,'dash',e.sprite.x,e.sprite.y,(e.sprite.x-oldX)/dt,(e.sprite.y-oldY)/dt,0xf1b48f,e.motion);
+      if(oldCharge>0&&e.charge<=0)e.attackPose=ATTACK_RECOVERY;
+      let frame=Math.hypot(e.sprite.x-oldX,e.sprite.y-oldY)>.05?Math.floor(e.motion*8)%4:0;
+      if(e.windup>0){
+        const duration=e.type===5?.55:e.type===2?.7:e.type===3||e.type===4?.72:.8;
+        frame=attackFrame(duration-e.windup,duration);
+      }else if(e.charge>0)frame=6;
+      else if(e.attackPose>0)frame=attackFrame(ATTACK_RELEASE+ATTACK_RECOVERY-e.attackPose,0);
+      if(e.threat)frame=chapterAttackFrame(e.threat.plan,e.threat.elapsed);
+      e.sprite.setFrame(ENEMIES[e.type].frame*8+frame);
+      const attacking=e.windup>0||e.charge>0||!!e.threat||e.attackPose>0;
+      const facing=attacking?(wasAttacking?0:dx):e.sprite.x-oldX;
+      if(Math.abs(facing)>.05)e.sprite.setFlipX(facing<0);
+      if(e.type!==5&&dist<e.radius+12)this.hurt(enemyDamage(isBossEnemy(e.type)?20:7+Math.min(this.chapter(),2)*2,this.chapter())*(hard?1.2:1));
       if(this.finished)return;
     }
     this.enemies=this.enemies.filter(e=>e.hp>0);
@@ -359,6 +468,7 @@ export class Arena extends Phaser.Scene {
         if(s.style==='fire'&&this.run.weapon==='staff'&&isEvolved(this.run)){this.addVisual('ring',x,y-10,52,0xffbd73);for(const other of this.enemies)if(other!==e&&other.hp>0&&Math.hypot(other.sprite.x-x,other.sprite.y-y)<52)this.hit(other,s.damage*.45);}
         if(s.hit.size>s.pierce){if(!s.flight)s.life=0;break;}
       }}
+      if(s.hostile&&s.life>0)drawAttackProjectile(this.effects,s.style,s.x,s.y,s.dx,s.dy,s.style==='stone'?0xd2c1a8:0xff9cae,this.clock);
       if(s.life<=0||(!s.flight&&(s.x<0||s.x>390||s.y<30||s.y>660)))s.sprite.destroy();
     }
     this.shots=this.shots.filter(s=>s.sprite.active);
@@ -377,7 +487,7 @@ export class Arena extends Phaser.Scene {
     this.pendingHammer=strike.evolved&&!strike.secondary?{...strike,damage:strike.damage*WEAPONS.hammer.echoDamage,remaining:WEAPONS.hammer.echoDelay,secondary:true,sprite:null}:null;
   }
   private clearAttacks(){
-    for(const shot of this.shots)shot.sprite.destroy();this.shots=[];this.explosions=[];
+    for(const shot of this.shots)shot.sprite.destroy();this.shots=[];this.explosions=[];this.enemyEffects=[];
     this.pendingHammer?.sprite?.destroy();this.pendingHammer=null;
     this.pendingMeteor?.sprite.destroy();this.pendingMeteor=null;
   }
@@ -447,31 +557,60 @@ export class Arena extends Phaser.Scene {
     return false;
   }
   private emitHud(){
-    const boss=this.enemies.find(e=>e.type>=6&&e.hp>0);
+    const boss=this.enemies.find(e=>isBossEnemy(e.type)&&e.hp>0);
     this.hooks.hud(this.run,Math.max(0,this.duration()-this.clock),boss?boss.hp/boss.max:null,this.phase,this.enemies.filter(e=>e.hp>0).length);
   }
   private changePhase(phase:ArenaPhase){
     this.phase=phase;this.phaseTimer=0;
     if(phase==='loot'){
       this.clearAttacks();
+      this.petParty.clearAttacks();
       this.hero.clearTint();this.addVisual('ring',this.hero.x,this.hero.y-10,220,0xc0edb3);
     }
     this.emitHud();
   }
+  private drawTaming(){
+    const e=this.run.petEncounter;if(e?.state!=='available'||!this.wildPet)return;
+    const {x,y}=this.wildPet,inside=Math.hypot(this.hero.x-x,this.hero.y-y)<=TAME_RADIUS;
+    this.tameRing!.clear().lineStyle(2,inside?0xdbefac:0x8dbca5,.8).strokeCircle(x,y,TAME_RADIUS);
+    this.tameRing!.lineStyle(4,0xdbefac,1).beginPath().arc(x,y,TAME_RADIUS,-Math.PI/2,-Math.PI/2+Math.PI*2*this.tameSeconds/PETS[e.pet].tameSeconds).strokePath();
+    this.hooks.taming?.(e.pet,this.tameSeconds,inside);
+  }
+  private tameStep(dt:number){
+    const e=this.run.petEncounter;if(e?.state!=='available'||!this.wildPet||this.savingPet)return;
+    const needed=PETS[e.pet].tameSeconds;
+    this.tameSeconds=tameProgress(this.tameSeconds,Math.hypot(this.hero.x-this.wildPet.x,this.hero.y-this.wildPet.y)<=TAME_RADIUS,dt,needed);this.drawTaming();
+    if(this.tameSeconds<needed)return;
+    this.savingPet=true;this.pause();
+    this.hooks.tame?.(e.pet,pets=>{
+      if(!this.savingPet)return;
+      this.run.petEncounter={room:this.run.room,pet:e.pet,state:'tamed'};this.run.pets=[...pets];this.petParty.sync(pets);
+      this.removeWildPet();this.savingPet=false;if(this.phase==='taming')this.changePhase('victory');this.resume();
+    });
+  }
+  private removeWildPet(){this.wildPet?.destroy();this.wildPet=undefined;this.tameRing?.destroy();this.hooks.taming?.(null,0,false);}
+  leavePet(){
+    const e=this.run.petEncounter;
+    if(this.phase!=='taming'||e?.state!=='available'||this.savingPet)return;
+    this.run.petEncounter={room:this.run.room,pet:e.pet,state:'left'};this.removeWildPet();this.changePhase('victory');
+  }
   update(_time:number,delta:number){
-    if(this.finished||this.choosing)return;
+    if(this.finished||this.choosing||this.savingPet||this.paused)return;
     const dt=Math.min(delta,50)/1000;this.clock+=dt;this.phaseTimer+=dt;this.run.elapsed=this.elapsedStart+this.clock;
+    if(this.wildPet&&this.run.petEncounter?.pet&&FLYING_PETS.includes(this.run.petEncounter.pet))this.wildPet.setFrame(Math.floor(this.clock*9)%4);
     this.effects.clear();this.move(dt);
-    if(this.phase==='loot'||this.phase==='victory'){
+    if(this.phase==='loot'||this.phase==='taming'||this.phase==='victory'){
+      this.petParty.step(dt,[],false);
       this.drawVisuals(dt);
       if(this.collect(dt))return;
-      if(this.phase==='loot'&&this.drops.length===0)this.changePhase('victory');
+      if(this.phase==='loot'&&this.drops.length===0)this.changePhase(this.run.petEncounter?.state==='available'?'taming':'victory');
       else if(this.phase==='victory'&&this.phaseTimer>=1.2){this.finished=true;this.pause();this.hooks.complete(this.getRun());}
+      if(this.phase==='taming')this.tameStep(dt);
       return;
     }
     this.hitTimer-=dt;if(this.hitTimer<=0)this.hero.clearTint();
     if(this.isBoss()){
-      if(!this.enemies.some(e=>e.hp>0&&e.type>=6)&&this.phase!=='clearing')this.changePhase('clearing');
+      if(!this.enemies.some(e=>e.hp>0&&isBossEnemy(e.type))&&this.phase!=='clearing')this.changePhase('clearing');
     }else{
       if(this.clock>=this.duration()&&this.phase!=='clearing')this.changePhase('clearing');
       else if(this.clock>=this.duration()-8&&this.phase==='fighting')this.changePhase('finalWave');
@@ -487,15 +626,18 @@ export class Arena extends Phaser.Scene {
     this.hammerStep(dt);
     if(this.attackTimer<=0){this.attackTimer=weaponCooldown(this.run);this.autoAttack();}
     this.projectileStep(dt);if(this.finished)return;this.skills(dt);
-    if(this.isBoss()&&!this.enemies.some(e=>e.hp>0&&e.type>=6)&&this.phase!=='clearing')this.changePhase('clearing');
-    if(this.phase==='clearing'&&!this.enemies.some(e=>e.hp>0))this.changePhase('loot');
+    this.petParty.step(dt,this.enemies);
+    if(this.isBoss()&&!this.enemies.some(e=>e.hp>0&&isBossEnemy(e.type))&&this.phase!=='clearing')this.changePhase('clearing');
+    const looting=this.phase==='clearing'&&!this.enemies.some(e=>e.hp>0);
+    if(looting)this.changePhase('loot');
     this.drawVisuals(dt);if(this.collect(dt))return;
+    if(!looting)this.tameStep(dt);if(this.savingPet)return;
     this.hudTimer-=dt;
     if(this.hudTimer<=0){this.hudTimer=.15;this.emitHud();}
   }
 }
 export function mountArena(parent:HTMLElement,run:Run,hooks:ArenaHooks){
   const scene=new Arena(run,hooks);
-  const game=new Phaser.Game({type:Phaser.AUTO,parent,width:390,height:660,backgroundColor:'#112726',pixelArt:true,antialias:false,scene:[scene],fps:{target:30,forceSetTimeOut:false},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},audio:{noAudio:true},input:{activePointers:2}});
+  const game=new Phaser.Game({type:Phaser.AUTO,parent,width:390,height:660,backgroundColor:'#112726',pixelArt:true,antialias:false,scene:[scene],loader:{imageLoadType:'HTMLImageElement'},fps:{target:30,forceSetTimeOut:false},scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},audio:{noAudio:true},input:{activePointers:2}});
   return {scene,game};
 }

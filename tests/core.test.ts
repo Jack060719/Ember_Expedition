@@ -52,7 +52,7 @@ test('encounter order varies by expedition while restored seeds keep the same ro
 });
 test('import rejects malformed, non-finite, locked and future saves',()=>{
   const base=initialSave();assert.deepEqual(validateSave(base),base);
-  for(const bad of [null,{}, {...base,version:4},{...base,profile:{...base.profile,embers:-1}},{...base,profile:{...base.profile,cleared:7}}])assert.throws(()=>validateSave(bad));
+  for(const bad of [null,{}, {...base,version:6},{...base,profile:{...base.profile,embers:-1}},{...base,profile:{...base.profile,cleared:41}}])assert.throws(()=>validateSave(bad));
   base.run=createRun(base.profile,0,'staff','normal',123);
   const valid=JSON.parse(JSON.stringify(base));assert.deepEqual(validateSave(valid),base);
   base.run.hp=NaN;assert.throws(()=>validateSave(base));
@@ -68,8 +68,8 @@ function legacySave(room:number){
 test('all legacy room checkpoints migrate once, preserving run and permanent progress',()=>{
   for(let room=0;room<=8;room++){
     const old=legacySave(room),before=structuredClone(old),migrated=validateSave(old);
-    assert.equal(migrated.version,3);assert.equal(migrated.run!.room,room>3?room-1:room);
-    assert.deepEqual(migrated.profile,old.profile);assert.deepEqual(migrated.run!.upgrades,old.run.upgrades);
+    assert.equal(migrated.version,5);assert.equal(migrated.run!.room,room>3?room-1:room);
+    assert.deepEqual(migrated.profile,{...old.profile,ownedPets:[],petSlots:1,equippedPets:[]});assert.deepEqual(migrated.run!.upgrades,old.run.upgrades);
     for(const key of ['hp','maxHp','xp','level','embers','kills','elapsed','seed','id','weapon','difficulty','secondWindUsed'])assert.deepEqual(migrated.run![key],old.run[key]);
     assert.equal('puzzle' in migrated.run!,false);assert.equal('route' in migrated.run!,false);
     assert.deepEqual(migrated.run!.growth,permanentGrowth(migrated.profile));
@@ -96,8 +96,8 @@ test('each primary weapon evolves only when both visible requirements are met',(
 test('balance updates preserve already evolved v2 checkpoints and unspent experience',()=>{
   const s=JSON.parse(readFileSync(new URL('./fixtures/save-v2.json',import.meta.url),'utf8'));
   const restored=validateSave(JSON.parse(JSON.stringify(s)));
-  assert.deepEqual(restored,{...s,version:3,settings:{...s.settings,preferredCharacter:'keeper'},run:{...s.run,character:'keeper'}});assert.ok(isEvolved(restored.run!));
-  assert.equal(restored.version,3);
+  assert.deepEqual(restored,{...s,version:5,profile:{...s.profile,ownedPets:[],petSlots:1,equippedPets:[]},settings:{...s.settings,preferredCharacter:'keeper'},run:{...s.run,character:'keeper',pets:[],petEncounter:{room:s.run.room,pet:null,state:'none'}}});assert.ok(isEvolved(restored.run!));
+  assert.equal(restored.version,5);
 });
 test('level choices always offer an unfinished evolution component and permit all auto skills',()=>{
   const r=createRun(initialSave().profile,0,'staff','normal',2);

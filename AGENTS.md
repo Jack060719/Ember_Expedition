@@ -2,7 +2,7 @@
 
 ## 所有 Agent 的閱讀入口
 
-開始工作前依序閱讀：
+首次接手時依序閱讀下列文件的現行摘要與當次任務相關章節；同一任務續作只讀差異，不重讀全部歷史交接：
 
 1. [PROJECT.md](PROJECT.md)：遊戲目的、已確認的設計決策與體驗目標。
 2. [STATUS.md](STATUS.md)：目前實作、驗證結果、未提交工作與搬移注意事項。
@@ -18,20 +18,37 @@
 - 精準修改：遵循現有風格，保留既有工作，不順手重構或清理無關程式。
 - 定義可驗證的完成條件；機制修正要有對應回歸檢查，文件修改則檢查連結、事實與一致性。
 
+## Agent 模型與 token 使用（2026-09-23）
+
+依當次工作階段選配置，不把同一配置套用到所有分支，也不讓整個分支一直使用決策模型。
+
+| 工作階段 | 模型／推理深度 | 適用範圍 |
+| --- | --- | --- |
+| 一般實作 | Sol（`gpt-6-sol`）／`high` | 已確認規格的程式、修錯、介面、素材接入、回歸案例、文件與例行整合。 |
+| 有限範圍的決策 | Astra（`gpt-6-astra`）／`high` | 需要比較方案的玩法、介面契約或相容性取捨；決定後交回 Sol 實作。 |
+| 複雜決策 | Astra（`gpt-6-astra`）／`xhigh` | 多系統／存檔遷移互相牽動，或根因仍不明且證據衝突；先列明待解問題，只處理該決策。 |
+
+- 預設一位 Sol 執行當次實作；僅在已授權並行且工作可獨立交付時增加 worker。不要為小修改再開規劃、審查或測試 agent。
+- Astra 按需使用，不常駐監督、不例行複審每個修改；升級時附問題、必要證據與待選方案，產出簡短決策後結束。任務規模大或碰到存檔檔案本身不是使用 `xhigh` 的理由。
+- 派工明寫模型、深度、目標、負責檔案／介面與完成條件；只傳必要摘要和檔案位置，不複製整段聊天、完整歷史報告或無關檔案。先用 `rg` 定位，再讀需要的區段。
+- 回報以修改結果、待使用者驗證項目與阻礙為主；沒有新問題不重複分析、輪詢或重跑全套檢查。各分支當前配置見 [指派文件](TASK-005-008-009-ASSIGNMENTS.md)。
+- 這些是派工規則，文件不會自動切換既有對話的模型。建立或接續工作階段時明確選配置；無法切換時如實說明，不宣稱已套用，也不自行改全域預設。
+
 ## 多 Agent 協作與交接
 
 - 開工先檢查 `git status --short`、目前分支及基準提交；[STATUS.md](STATUS.md) 是有日期的快照，不能取代即時檢查。
 - 分工時交代目標、驗收方式、負責檔案及共用介面。獨立任務可用各自的分支／工作樹；共用目錄時，同一檔案由一位負責者修改，其他 agent 先做閱讀、建議或檢查。
 - `src/core.ts`、`src/arena.ts`、`src/main.ts` 是常見交集。跨任務的型別、升級 ID、存檔欄位及場景 hooks 先協調，再由指定負責者整合；不要同時覆寫同一段程式。
 - 保留使用者及其他 agent 的未提交修改，不以 reset、clean、checkout 覆蓋不屬於自己的工作。不要把工作樹外的改動或未整合分支宣稱為已完成。
-- 測試目前固定使用 5173、4173、4180 埠。同機多工作樹要協調、依序使用，確認伺服器來自待測工作樹；不要誤測另一分支或任意終止他人的伺服器。
-- 各 agent 回報實際修改、測試結果、存檔影響與剩餘事項；整合負責者在整合後執行受影響檢查，並統一更新 `STATUS.md`，避免多人爭改狀態。產品決策更新 `PROJECT.md`，待辦狀態更新 `ROADMAP.md`。
+- 單元測試與 build 可由 agent 執行；瀏覽器測試由使用者執行。若使用者要求提供試玩服務，5173、4173、4180 埠仍須協調並核對來源，不任意終止既有伺服器。提供試玩不等於授權自動瀏覽器測試。
+- 各 agent 回報實際修改、已執行檢查與結果、待使用者執行的瀏覽器測試、存檔影響與剩餘事項；整合負責者統一更新 `STATUS.md`，避免多人爭改狀態。產品決策更新 `PROJECT.md`，待辦狀態更新 `ROADMAP.md`。
 - 搬到 Orca 或其他協作環境時沿用以上文件；由該環境管理工作樹與訊息，不假設舊終端、伺服器、聊天上下文或暫存檔仍存在。
 
 交接至少包含以下資訊，可填入 `STATUS.md` 的進行中任務與最近交接區，或提供給整合負責者：
 
 ```text
 任務／負責者／分支或工作樹／基準提交：
+本次模型／推理深度（實際設定，未確認則註明）：
 狀態（進行中、待整合、待驗證、完成）：
 修改檔案與結果：
 驗證指令、結果與未驗證範圍：
@@ -51,7 +68,7 @@
 
 ## Build, Test, and Development Commands
 
-Use Node.js 22.18 or newer.
+Use Node.js 22.18 or newer. Agents may run affected unit tests and the build; browser checks below are for the user (see Testing Guidelines).
 
 - `npm ci`: install locked dependencies.
 - `npm run dev -- --port 5173 --strictPort`: start development.
@@ -71,7 +88,11 @@ Use strict TypeScript and ES modules with explicit `.ts` imports. Match nearby t
 
 ## Testing Guidelines
 
-Unit tests use `node:test` and `node:assert/strict`; browser checks use Playwright. Name unit files `*.test.ts` and describe observable behavior in test titles. Add focused regression coverage for changed mechanics, save migrations, and reward ordering. Run `npm test`, the build, and affected integration checks. No numerical coverage threshold is configured. Chromium emulation does not establish iPhone hardware compatibility.
+2026-09-23 使用者確認：agent 可跑單元測試與 build；瀏覽器測試由使用者執行。Agent 不自行開瀏覽器、操作網頁、截圖驗證或執行 Playwright／其他無頭瀏覽器測試，也不自動啟動瀏覽器測試伺服器。此限制包含 `test:arena`、`test:boss`、`test:browser`、`test:offline`、`test:android`、平衡量測與 `scripts/check-*.mjs` 中的瀏覽器流程。
+
+程式修改後執行受影響的單元測試與 `npm run build`；只有文件修改時檢查 diff、連結與一致性即可。檢查通過且沒有新改動或新疑點，不重跑；整合後只補查整合影響。交付時列出實際結果，另提供最少的瀏覽器待測指令／操作步驟與預期結果，明記「未執行，待使用者驗證」，不把單元／建置成功當成瀏覽器驗收通過。使用者後續明確指定其他執行範圍時，依當次授權處理。
+
+Unit tests use `node:test` and `node:assert/strict`; browser checks use Playwright. Name unit files `*.test.ts` and describe observable behavior in test titles. Add focused regression coverage for changed mechanics, save migrations, and reward ordering; leave browser execution to the user under the policy above. No numerical coverage threshold is configured. Chromium emulation does not establish iPhone hardware compatibility.
 
 ## Commit & Pull Request Guidelines
 

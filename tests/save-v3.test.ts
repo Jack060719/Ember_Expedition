@@ -7,7 +7,7 @@ const fixture=(version:number)=>JSON.parse(readFileSync(new URL(`./fixtures/save
 
 test('v3 defaults and new keeper runs include the starting vitality once',()=>{
   const save=core.initialSave();
-  assert.equal(save.version,3);assert.equal(save.settings.preferredCharacter,'keeper');
+  assert.equal(save.version,5);assert.equal(save.settings.preferredCharacter,'keeper');
   save.run=core.createRun(save.profile,0,'staff','normal',8);
   assert.equal(save.run.character,'keeper');assert.equal(save.run.upgrades.vitality,1);
   assert.equal(save.run.hp,120);assert.equal(save.run.maxHp,120);
@@ -52,12 +52,12 @@ test('v1 and v2 migrations preserve checkpoint values without granting keeper vi
     const old=fixture(version);old.run.room=room;
     if(version===1)old.run.puzzle=room===3?{mask:79,moves:8}:null;
     const before=structuredClone(old),migrated=core.validateSave(old);
-    assert.equal(migrated.version,3);assert.equal(migrated.settings.preferredCharacter,'keeper');
+    assert.equal(migrated.version,5);assert.equal(migrated.settings.preferredCharacter,'keeper');
     assert.equal(migrated.run!.character,'keeper');
     const expected=structuredClone(old.run);
-    expected.character='keeper';
+    expected.character='keeper';expected.pets=[];expected.petEncounter={room:version===1&&room>3?room-1:room,pet:null,state:'none'};
     if(version===1){expected.room=room>3?room-1:room;expected.growth=core.permanentGrowth(old.profile);delete expected.route;delete expected.puzzle;}
-    assert.deepEqual(migrated.run,expected);assert.deepEqual(migrated.profile,old.profile);
+    assert.deepEqual(migrated.run,expected);assert.deepEqual(migrated.profile,{...old.profile,ownedPets:[],petSlots:1,equippedPets:[]});
     assert.equal(migrated.settings.sound,old.settings.sound);
     assert.deepEqual(core.validateSave(migrated),migrated);assert.deepEqual(old,before);
   }
@@ -67,8 +67,8 @@ test('legacy camp saves get a preference without starting a run',()=>{
   for(const version of [1,2]){
     const old=fixture(version);old.run=null;
     const migrated=core.validateSave(old);
-    assert.equal(migrated.version,3);assert.equal(migrated.run,null);
-    assert.equal(migrated.settings.preferredCharacter,'keeper');assert.deepEqual(migrated.profile,old.profile);
+    assert.equal(migrated.version,5);assert.equal(migrated.run,null);
+    assert.equal(migrated.settings.preferredCharacter,'keeper');assert.deepEqual(migrated.profile,{...old.profile,ownedPets:[],petSlots:1,equippedPets:[]});
   }
 });
 
@@ -87,7 +87,7 @@ test('v3 rejects missing, unknown and locked character fields without changing t
   const valid=core.initialSave();valid.run=core.createRun(valid.profile,0,'staff','normal',8);
   for(const mutate of [
     s=>delete s.settings.preferredCharacter,s=>s.settings.preferredCharacter='unknown',s=>s.settings.preferredCharacter='scout',
-    s=>delete s.run.character,s=>s.run.character='unknown',s=>s.run.character='warden',s=>s.version=4,
+    s=>delete s.run.character,s=>s.run.character='unknown',s=>s.run.character='warden',s=>s.version=6,
     s=>s.run.upgrades.unknown=1,s=>s.run.upgrades.ward=4,
   ]){
     const invalid=JSON.parse(JSON.stringify(valid));mutate(invalid);const before=structuredClone(invalid);

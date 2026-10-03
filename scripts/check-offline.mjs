@@ -4,7 +4,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
-const root=path.resolve('dist'), origin='http://127.0.0.1:4180';
+const testPort=Number(process.argv.find(a=>a.startsWith('--port='))?.split('=')[1]??4180);
+assert.ok([5173,4180].includes(testPort));
+const root=path.resolve('dist'), origin=`http://127.0.0.1:${testPort}`;
 const useWebKit=process.argv.includes('--webkit');
 const android=process.argv.includes('--android'), mobile=android?devices['Pixel 5']:{};
 let blocked=false, signIn=false, redirectIndex=false, nextVersion=false, unreachable=false, forestRequests=0;
@@ -36,7 +38,7 @@ const server=createServer(async(req,res)=>{
   }
   catch{res.writeHead(404).end();}
 });
-await new Promise(resolve=>server.listen(4180,'127.0.0.1',resolve));
+await new Promise(resolve=>server.listen(testPort,'127.0.0.1',resolve));
 const browser=await (useWebKit?webkit:chromium).launch({headless:true});
 // Windows WebKit fails even a minimal cached page with setOffline; drop server connections instead.
 async function disconnect(context){if(useWebKit)unreachable=true;else await context.setOffline(true);}

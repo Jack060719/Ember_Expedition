@@ -4,7 +4,8 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
-const baseline=process.argv.includes('--baseline');
+const current=process.argv.includes('--current');
+const baseline=current||process.argv.includes('--baseline');
 await mkdir('artifacts',{recursive:true});
 const before=baseline?null:JSON.parse(await readFile('artifacts/boss-baseline.json','utf8'));
 const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -141,7 +142,7 @@ try{
     report.results.push({...label,difficulty:run.difficulty,...result});
     console.log(`boss ${label.chapter+1} ${label.weapon} camp=${label.camp} ${label.build} ${run.difficulty} seed=${label.seed}: ${result.complete?'clear':result.defeat?'defeat':'timeout'} ${result.bossSeconds}s damage=${result.damage}`);
   }
-  const output=`artifacts/boss-${baseline?'baseline':'after'}.json`;
+  const output=`artifacts/boss-${current?'current':baseline?'baseline':'after'}.json`;
   for(const file of sourceFiles)assert.equal(hash(await readFile(file)),sources[file],file+' stays unchanged during measurement');
   await writeFile(output,JSON.stringify(report,null,2));
   assert.ok(report.checkpoints.length>0,'Prepared boss checkpoints');
