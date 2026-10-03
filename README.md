@@ -8,7 +8,7 @@
 
 ## Android 安裝
 
-Android 支援已於 2026-09-22 發布至[原手機網站](https://ember-expedition-nowifi.asterina-co.chatgpt.site)第 7 版，可用它執行下列安裝步驟。請以已獲授權的電子郵件所對應的 ChatGPT 帳號登入。[Android 私人測試站](https://ember-expedition-android-test.asterina-co.chatgpt.site)保留舊測試版本，存檔與正式站分開。
+Android 支援已發布至[原手機網站](https://ember-expedition-nowifi.asterina-co.chatgpt.site)，目前為第 8 版，可用它執行下列安裝步驟。請以已獲授權的電子郵件所對應的 ChatGPT 帳號登入。[Android 私人測試站](https://ember-expedition-android-test.asterina-co.chatgpt.site)保留舊測試版本，存檔與正式站分開。
 
 1. 用 Android 的 Chrome 一般分頁開啟上方原手機網站，依私人網站提示登入。若從通訊軟體開啟，先改用 Chrome。
 2. 點右上角「⋮」→「加入主畫面」或「安裝應用程式」，依 Chrome 顯示的選項完成。
@@ -38,7 +38,7 @@ Safari 分頁和主畫面 App 的儲存資料可能不同，請在主畫面版�
 
 ## 目前內容
 
-以下為 TASK-009 工作樹內容，尚未合併 main 或發布。分批驗證、實機待辦與整合提交見 [TASK-009-HANDOFF.md](TASK-009-HANDOFF.md)；上方安裝網址仍是既有發布版。
+以下內容已整合 main 並發布到上方原手機網站第 8 版。分批驗證與實機待辦見 [TASK-009-HANDOFF.md](TASK-009-HANDOFF.md)；實際發布紀錄見 [STATUS.md](STATUS.md)。
 
 - 20 章、40 次主線遠征；每章兩趟，每趟包含 7 個戰鬥房間，最後一房為守衛戰或首領戰。原六趟索引、前三章體驗及房間數保留。
 - 3 名可選角色、5 種主武器、21 種升級、5 種武器進化；可同時搭配連鎖閃電、伴星、星爆、星墜，組出霜雷共鳴或餘燼連爆。

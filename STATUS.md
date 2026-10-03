@@ -1,15 +1,13 @@
 # 目前狀態與協作交接
 
-## 2026-10-03 main 內容已同步；Git 合併及發布受環境阻擋
+## 2026-10-04 單寵與主線已整合並發布
 
-使用者已驗收單寵版本並明確授權整合與發布。本次將驗收工作樹的 1,253 個新增／異動檔案同步至 main 工作目錄，src／tests／scripts／public 逐檔與來源相同；既有 AGENTS 規則與文件改動保留，PROJECT／README／ROADMAP 完成文件整合。main 分支指標仍為 c6e2287，尚未產生 Git 整合提交。
+使用者驗收後，main 以 `4fbb4635c3b2b8866aa7dbdb38861f1812df2dd5` 整合 20 章／40 趟、14 寵、單寵出戰、自主追擊與攻擊特效；已推送 GitHub main 及原 Sites 來源 main。原始素材 `assets-source/`、未啟用的 GitHub Pages 工作流程與本機暫存目錄未加入整合提交，仍保留在工作目錄。驗收分支的未提交內容亦保留。
 
-- Git 阻礙：根 .git 由目前環境設為唯讀；提交單寵修正時建立 .git/worktrees/animation-worktree/index.lock 遭 Permission denied。本工作階段不允許提升權限，未嘗試繞過保護。
-- 發布阻礙：已使用 Sites hosting 流程開啟原 project_id，在獨立 artifacts/site-release-20261003/source 準備發布來源；連線 git.chatgpt-team.site:443 約 150 秒後逾時，無法取得／推送原始碼。未呼叫 save_site_version 或 deploy_site_version，原站仍第 7 版，custom／revision 3 權限未變。
-- 檢查：來源已有 103／103 單元通過，本次比對證明相關程式與測試未改，未重跑；main 的 tsc 與 Vite native loader 建置、離線清單生成通過，版本同為 0e2f41813aa0，73 個離線檔案。未進行瀏覽器或實機測試。
-- 發布產物：artifacts/site-release-20261003/single-pet-0e2f41813aa0.tar.gz（18,274,439 bytes）。官方 Bash 包裝器在此 Windows 缺少 dirname／mktemp，改用同插件 prepare-site-build.cjs 驗證並由 Windows tar 封裝；84 個封裝項目，包含 dist/index.html 與正確的 .openai/hosting.json，沒有原稿、測試存檔、artifacts 或 Git 資料。封裝雜湊記於同層 package.json；尚未上傳。
-- 保存：原 main 文件、三方整合輸入與單寵差異在 artifacts/site-release-20261003/backups；整合來源與比對結果記於 integration.json。main 與驗收分支的未提交內容都保留。
-- 下一步：在能寫入此專案 Git 中繼資料且能連上 Sites 來源服務的工作階段，完成單寵提交／main 整合、推送精確來源，再依 Sites 流程保存版本與部署，成功後回填版本及部署 ID。使用者已授權發布，不需要再次確認；不要把目前的檔案同步或封裝當成發布成功。
+- 原網站：[餘燼遠征](https://ember-expedition-nowifi.asterina-co.chatgpt.site) 已部署 Sites 第 8 版 `appgprj_6aabe9ab4ab881919a8d919463a6289d~appgver_0c120bb426c4819192a62b2d16ad2b62`；部署 `appgdep_6ac135a939588191bef803968ab54da2` 回報 `succeeded`。發布前後 `custom` 存取權限 revision 3 完全相同。
+- 驗證：整合來源先前 103／103 單元通過；main 的 TypeScript、Vite native loader 建置及離線清單生成通過，版本 `0e2f41813aa0`、73 個離線檔案。此次僅核對內容與發布來源，未重跑未變動的測試；瀏覽器、手機及離線更新仍待使用者驗證。
+- 發布封裝：`artifacts/site-release-20261003/single-pet-0e2f41813aa0.tar.gz`；已驗證雜湊與建置首頁一致，封裝只有執行檔與 hosting 設定，不含原始素材或測試存檔。網站來源推送確認後，Sites 已儲存此封裝並完成部署。
+- 舊存檔維持 Save v5；原三寵隊伍各保留第一隻並一次退還已購額外格數的火種，收藏與進度保留。手機更新時請保持連網，待遊戲顯示新版可用後在遠征結束時套用；不需清除網站資料。
 
 ## 2026-10-03 單寵版本待試玩
 
